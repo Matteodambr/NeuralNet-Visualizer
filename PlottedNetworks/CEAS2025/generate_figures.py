@@ -41,8 +41,10 @@ NEURON_NUMBERING_REVERSED = True  # True: labels specified top-to-bottom, False:
 
 # Neuron text labels (custom labels like $x_1$, $a_{1,1}$, etc.)
 SHOW_NEURON_TEXT_LABELS = True  # Enable/disable custom neuron labels
-NEURON_TEXT_LABEL_FONTSIZE = 24  # Font size for neuron labels
-NEURON_TEXT_LABEL_OFFSET = 1.6  # Distance from neuron center (in plot units)
+NEURON_TEXT_LABEL_FONTSIZE_ACTOR = 24  # Font size for neuron labels
+NEURON_TEXT_LABEL_FONTSIZE_CRITIC = 36  # Font size for neuron labels
+NEURON_TEXT_LABEL_OFFSET_ACTOR = 1.6  # Distance from neuron center (in plot units)
+NEURON_TEXT_LABEL_OFFSET_CRITIC = 1.85  # Distance from neuron center (in plot units)
 
 # Network styling - Default colors for neurons without specific styles
 DEFAULT_NEURON_COLOR = 'lightblue'
@@ -180,8 +182,8 @@ config_publication = PlotConfig(
     
     # Neuron text labels
     show_neuron_text_labels=SHOW_NEURON_TEXT_LABELS,
-    neuron_text_label_fontsize=NEURON_TEXT_LABEL_FONTSIZE,
-    neuron_text_label_offset=NEURON_TEXT_LABEL_OFFSET,
+    neuron_text_label_fontsize=NEURON_TEXT_LABEL_FONTSIZE_ACTOR,
+    neuron_text_label_offset=NEURON_TEXT_LABEL_OFFSET_ACTOR,
     
     # Default neuron styling
     neuron_color=DEFAULT_NEURON_COLOR,
@@ -261,6 +263,16 @@ plot_network(
     dpi=OUTPUT_DPI_PNG
 )
 print(f"✓ Generated: {figure1_png_path}")
+# Also generate SVG (vector) for editing/scaling in publications
+figure1_svg_path = os.path.join(output_dir, "policy_net.svg")
+plot_network(
+    nn_main,
+    config=config_publication,
+    save_path=figure1_svg_path,
+    show=False,
+    format="svg"
+)
+print(f"✓ Generated: {figure1_svg_path}")
 
 # ==============================================================================
 # Figure 2: Critic Network Architecture - Single Value Output
@@ -331,8 +343,8 @@ config_critic = PlotConfig(
     
     # Neuron text labels
     show_neuron_text_labels=SHOW_NEURON_TEXT_LABELS,
-    neuron_text_label_fontsize=NEURON_TEXT_LABEL_FONTSIZE,
-    neuron_text_label_offset=NEURON_TEXT_LABEL_OFFSET,
+    neuron_text_label_fontsize=NEURON_TEXT_LABEL_FONTSIZE_CRITIC,
+    neuron_text_label_offset=NEURON_TEXT_LABEL_OFFSET_CRITIC,
     
     # Default neuron styling
     neuron_color=DEFAULT_NEURON_COLOR,
@@ -401,6 +413,16 @@ plot_network(
     dpi=OUTPUT_DPI_PNG
 )
 print(f"✓ Generated: {figure2_png_path}")
+# Also generate SVG (vector) for editing/scaling in publications
+figure2_svg_path = os.path.join(output_dir, "critic_net.svg")
+plot_network(
+    nn_critic,
+    config=config_critic,
+    save_path=figure2_svg_path,
+    show=False,
+    format="svg"
+)
+print(f"✓ Generated: {figure2_svg_path}")
 
 # ==============================================================================
 # Summary
@@ -412,8 +434,10 @@ print(f"\nAll figures saved to: {output_dir}/")
 print("\nGenerated files:")
 print("  - policy_net.pdf (publication)")
 print("  - policy_net.png (presentation)")
+print("  - policy_net.svg (vector)")
 print("  - critic_net.pdf (publication)")
 print("  - critic_net.png (presentation)")
+print("  - critic_net.svg (vector)")
 print("\nNetwork specifications:")
 print("  [1] Policy Network:")
 print("      - Input: 6 neurons (yellow with box)")
