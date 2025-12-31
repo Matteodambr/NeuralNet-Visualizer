@@ -14,11 +14,12 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from src.NN_DEFINITION_UTILITIES import NeuralNetwork, FullyConnectedLayer
+from src.NN_DEFINITION_UTILITIES import NeuralNetwork, FullyConnectedLayer, VectorInput
 from src.NN_PLOTTING_UTILITIES import plot_network, PlotConfig
 
-# Create output directory relative to this script
-output_dir = os.path.join(os.path.dirname(__file__), "test_outputs", "neuron_labels")
+# Create output directory at project root
+project_root = os.path.join(os.path.dirname(__file__), '..', '..')
+output_dir = os.path.join(project_root, "test_outputs", "neuron_labels")
 os.makedirs(output_dir, exist_ok=True)
 
 def test_basic_text_labels():
@@ -28,8 +29,8 @@ def test_basic_text_labels():
     nn = NeuralNetwork("Basic Labels Network")
     
     # Input layer with text labels on the left
-    nn.add_layer(FullyConnectedLayer(
-        num_neurons=3,
+    nn.add_layer(VectorInput(
+        num_features=3,
         name="Input",
         neuron_labels=["Age", "Income", "Credit Score"],
         label_position="left"
@@ -55,7 +56,7 @@ def test_basic_text_labels():
         nn,
         config=config,
         title="Plain Text Labels",
-        save_path=os.path.join(os.path.dirname(__file__), "test_outputs", "neuron_labels", "01_basic_text.png"),
+        save_path=os.path.join(output_dir, "01_basic_text.png"),
         show=False
     )
     print("  ✓ Basic text labels")
@@ -68,8 +69,8 @@ def test_latex_math_labels():
     nn = NeuralNetwork("LaTeX Math Network")
     
     # Input layer with LaTeX math
-    nn.add_layer(FullyConnectedLayer(
-        num_neurons=3,
+    nn.add_layer(VectorInput(
+        num_features=3,
         name="Input",
         neuron_labels=[r"$x_1$", r"$x_2$", r"$x_3$"],
         label_position="left"
@@ -100,7 +101,7 @@ def test_latex_math_labels():
         nn,
         config=config,
         title="LaTeX Mathematical Notation",
-        save_path=os.path.join(os.path.dirname(__file__), "test_outputs", "neuron_labels", "02_latex_math.png"),
+        save_path=os.path.join(output_dir, "02_latex_math.png"),
         show=False
     )
     print("  ✓ LaTeX math labels")
@@ -113,8 +114,8 @@ def test_complex_latex():
     nn = NeuralNetwork("Complex LaTeX")
     
     # Input with complex LaTeX
-    nn.add_layer(FullyConnectedLayer(
-        num_neurons=4,
+    nn.add_layer(VectorInput(
+        num_features=4,
         name="Input",
         neuron_labels=[
             r"$\alpha$",
@@ -148,7 +149,7 @@ def test_complex_latex():
         nn,
         config=config,
         title="Complex LaTeX Expressions",
-        save_path=os.path.join(os.path.dirname(__file__), "test_outputs", "neuron_labels", "03_complex_latex.png"),
+        save_path=os.path.join(output_dir, "03_complex_latex.png"),
         show=False
     )
     print("  ✓ Complex LaTeX expressions")
@@ -160,8 +161,8 @@ def test_left_and_right_positioning():
     
     # Network with labels on left
     nn_left = NeuralNetwork("Left Labels")
-    nn_left.add_layer(FullyConnectedLayer(
-        num_neurons=4,
+    nn_left.add_layer(VectorInput(
+        num_features=4,
         name="Input",
         neuron_labels=[r"$x_1$", r"$x_2$", r"$x_3$", r"$x_4$"],
         label_position="left"
@@ -174,14 +175,14 @@ def test_left_and_right_positioning():
         nn_left,
         config=config,
         title="Labels on Left Side",
-        save_path=os.path.join(os.path.dirname(__file__), "test_outputs", "neuron_labels", "04_labels_left.png"),
+        save_path=os.path.join(output_dir, "04_labels_left.png"),
         show=False
     )
     print("  ✓ Labels on left")
     
     # Network with labels on right
     nn_right = NeuralNetwork("Right Labels")
-    nn_right.add_layer(FullyConnectedLayer(4, name="Input"))
+    nn_right.add_layer(VectorInput(num_features=4, name="Input"))
     nn_right.add_layer(FullyConnectedLayer(3, activation="relu", name="Hidden"))
     nn_right.add_layer(FullyConnectedLayer(
         num_neurons=2,
@@ -195,7 +196,7 @@ def test_left_and_right_positioning():
         nn_right,
         config=config,
         title="Labels on Right Side",
-        save_path=os.path.join(os.path.dirname(__file__), "test_outputs", "neuron_labels", "05_labels_right.png"),
+        save_path=os.path.join(output_dir, "05_labels_right.png"),
         show=False
     )
     print("  ✓ Labels on right")
@@ -208,8 +209,8 @@ def test_mixed_labels():
     nn = NeuralNetwork("Mixed Labels")
     
     # Input with labels
-    nn.add_layer(FullyConnectedLayer(
-        num_neurons=3,
+    nn.add_layer(VectorInput(
+        num_features=3,
         name="Input",
         neuron_labels=["Feature A", "Feature B", "Feature C"],
         label_position="left"
@@ -243,7 +244,7 @@ def test_mixed_labels():
         nn,
         config=config,
         title="Mixed Labeled and Unlabeled Layers",
-        save_path=os.path.join(os.path.dirname(__file__), "test_outputs", "neuron_labels", "06_mixed_labels.png"),
+        save_path=os.path.join(output_dir, "06_mixed_labels.png"),
         show=False
     )
     print("  ✓ Mixed labeled/unlabeled layers")
@@ -254,8 +255,8 @@ def test_show_hide_control():
     print("\nTesting show/hide control...")
     
     nn = NeuralNetwork("Show/Hide Test")
-    nn.add_layer(FullyConnectedLayer(
-        num_neurons=3,
+    nn.add_layer(VectorInput(
+        num_features=3,
         name="Input",
         neuron_labels=[r"$x_1$", r"$x_2$", r"$x_3$"],
         label_position="left"
@@ -275,7 +276,7 @@ def test_show_hide_control():
         nn,
         config=config_show,
         title="Custom Labels Shown",
-        save_path=os.path.join(os.path.dirname(__file__), "test_outputs", "neuron_labels", "07_labels_shown.png"),
+        save_path=os.path.join(output_dir, "07_labels_shown.png"),
         show=False
     )
     print("  ✓ Labels shown")
@@ -286,7 +287,7 @@ def test_show_hide_control():
         nn,
         config=config_hide,
         title="Custom Labels Hidden",
-        save_path=os.path.join(os.path.dirname(__file__), "test_outputs", "neuron_labels", "08_labels_hidden.png"),
+        save_path=os.path.join(output_dir, "08_labels_hidden.png"),
         show=False
     )
     print("  ✓ Labels hidden")
@@ -297,8 +298,8 @@ def test_with_neuron_indices():
     print("\nTesting custom labels with neuron indices...")
     
     nn = NeuralNetwork("Labels + Indices")
-    nn.add_layer(FullyConnectedLayer(
-        num_neurons=4,
+    nn.add_layer(VectorInput(
+        num_features=4,
         name="Input",
         neuron_labels=[r"$x_1$", r"$x_2$", r"$x_3$", r"$x_4$"],
         label_position="left"
@@ -320,7 +321,7 @@ def test_with_neuron_indices():
         nn,
         config=config,
         title="Custom Labels + Neuron Indices",
-        save_path=os.path.join(os.path.dirname(__file__), "test_outputs", "neuron_labels", "09_labels_and_indices.png"),
+        save_path=os.path.join(output_dir, "09_labels_and_indices.png"),
         show=False
     )
     print("  ✓ Custom labels with indices")
@@ -334,8 +335,8 @@ def test_with_collapsed_layers():
     
     # Large input layer with labels
     input_labels = [f"Feature {i+1}" for i in range(20)]
-    nn.add_layer(FullyConnectedLayer(
-        num_neurons=20,
+    nn.add_layer(VectorInput(
+        num_features=20,
         name="Input",
         neuron_labels=input_labels,
         label_position="left"
@@ -366,7 +367,7 @@ def test_with_collapsed_layers():
         nn,
         config=config,
         title="Custom Labels on Collapsed Layers",
-        save_path=os.path.join(os.path.dirname(__file__), "test_outputs", "neuron_labels", "10_collapsed_with_labels.png"),
+        save_path=os.path.join(output_dir, "10_collapsed_with_labels.png"),
         show=False
     )
     print("  ✓ Labels with collapsed layers")
@@ -377,8 +378,8 @@ def test_font_sizes():
     print("\nTesting different font sizes...")
     
     nn = NeuralNetwork("Font Size Test")
-    nn.add_layer(FullyConnectedLayer(
-        num_neurons=3,
+    nn.add_layer(VectorInput(
+        num_features=3,
         name="Input",
         neuron_labels=[r"$\alpha$", r"$\beta$", r"$\gamma$"],
         label_position="left"
@@ -401,7 +402,7 @@ def test_font_sizes():
         nn,
         config=config_small,
         title="Small Font (8pt)",
-        save_path=os.path.join(os.path.dirname(__file__), "test_outputs", "neuron_labels", "11_font_small.png"),
+        save_path=os.path.join(output_dir, "11_font_small.png"),
         show=False
     )
     print("  ✓ Small font (8pt)")
@@ -415,7 +416,7 @@ def test_font_sizes():
         nn,
         config=config_large,
         title="Large Font (14pt)",
-        save_path=os.path.join(os.path.dirname(__file__), "test_outputs", "neuron_labels", "12_font_large.png"),
+        save_path=os.path.join(output_dir, "12_font_large.png"),
         show=False
     )
     print("  ✓ Large font (14pt)")
@@ -428,8 +429,8 @@ def test_realistic_example():
     nn = NeuralNetwork("Credit Risk Predictor")
     
     # Input features
-    nn.add_layer(FullyConnectedLayer(
-        num_neurons=6,
+    nn.add_layer(VectorInput(
+        num_features=6,
         name="Input Features",
         neuron_labels=[
             "Age",
@@ -476,7 +477,7 @@ def test_realistic_example():
         nn,
         config=config,
         title="Credit Risk Prediction Neural Network",
-        save_path=os.path.join(os.path.dirname(__file__), "test_outputs", "neuron_labels", "13_realistic_example.png"),
+        save_path=os.path.join(output_dir, "13_realistic_example.png"),
         show=False,
         dpi=300
     )
@@ -486,7 +487,7 @@ def test_realistic_example():
         nn,
         config=config,
         title="Credit Risk Prediction Neural Network",
-        save_path=os.path.join(os.path.dirname(__file__), "test_outputs", "neuron_labels", "14_realistic_example.svg"),
+        save_path=os.path.join(output_dir, "14_realistic_example.svg"),
         show=False,
         format="svg"
     )

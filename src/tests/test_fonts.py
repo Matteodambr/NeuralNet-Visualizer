@@ -55,18 +55,19 @@ print("\n" + "=" * 60)
 print("TESTING FONTS WITH NEURAL NETWORK LABELS")
 print("=" * 60)
 
-from src.NN_DEFINITION_UTILITIES import NeuralNetwork, FullyConnectedLayer
+from src.NN_DEFINITION_UTILITIES import NeuralNetwork, FullyConnectedLayer, VectorInput
 from src.NN_PLOTTING_UTILITIES import plot_network, PlotConfig
 
-# Create output directory relative to this script
-output_dir = os.path.join(os.path.dirname(__file__), "test_outputs", "fonts")
+# Create output directory at project root
+project_root = os.path.join(os.path.dirname(__file__), '..', '..')
+output_dir = os.path.join(project_root, "test_outputs", "fonts")
 os.makedirs(output_dir, exist_ok=True)
 
 # Test 1: Default font
 print("\n1. Testing with default font...")
 nn = NeuralNetwork("Font Test")
-nn.add_layer(FullyConnectedLayer(
-    num_neurons=3,
+nn.add_layer(VectorInput(
+    num_features=3,
     name="Input",
     neuron_labels=["Feature A", "Feature B", "Feature C"],
     label_position="left"

@@ -6,8 +6,13 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..'))
 
-from src.NN_DEFINITION_UTILITIES import NeuralNetwork, FullyConnectedLayer
+from src.NN_DEFINITION_UTILITIES import NeuralNetwork, FullyConnectedLayer, VectorInput
 from src.NN_PLOTTING_UTILITIES import plot_network, PlotConfig
+
+# Create output directory at project root
+project_root = os.path.join(os.path.dirname(__file__), '..', '..')
+output_dir = os.path.join(project_root, "test_outputs")
+os.makedirs(output_dir, exist_ok=True)
 
 print("=" * 70)
 print("Testing Neuron Numbering and Collapse Distribution Controls")
@@ -15,7 +20,7 @@ print("=" * 70)
 
 # Create a test network with a large layer
 nn = NeuralNetwork("Control Test Network")
-nn.add_layer(FullyConnectedLayer(num_neurons=5, name="Input"))
+nn.add_layer(VectorInput(num_features=5, name="Input"))
 nn.add_layer(FullyConnectedLayer(num_neurons=50, activation="relu", name="LargeHidden"))
 nn.add_layer(FullyConnectedLayer(num_neurons=3, activation="softmax", name="Output"))
 
@@ -32,7 +37,7 @@ config_no_labels = PlotConfig(
 plot_network(
     nn,
     title="Network WITHOUT Neuron Numbers",
-    save_path=os.path.join(os.path.dirname(__file__), "test_outputs", "test_no_neuron_numbers.png"),
+    save_path=os.path.join(output_dir, "test_no_neuron_numbers.png"),
     show=False,
     config=config_no_labels
 )
@@ -52,7 +57,7 @@ config_with_labels = PlotConfig(
 plot_network(
     nn,
     title="Network WITH Neuron Numbers (0, 1, ..., 48, 49)",
-    save_path=os.path.join(os.path.dirname(__file__), "test_outputs", "test_with_neuron_numbers.png"),
+    save_path=os.path.join(output_dir, "test_with_neuron_numbers.png"),
     show=False,
     config=config_with_labels
 )
@@ -73,7 +78,7 @@ config_more_start = PlotConfig(
 plot_network(
     nn,
     title="Custom Collapse: 15 start + dots + 4 end",
-    save_path=os.path.join(os.path.dirname(__file__), "test_outputs", "test_collapse_more_start.png"),
+    save_path=os.path.join(output_dir, "test_collapse_more_start.png"),
     show=False,
     config=config_more_start
 )
@@ -93,7 +98,7 @@ config_more_end = PlotConfig(
 plot_network(
     nn,
     title="Custom Collapse: 5 start + dots + 14 end",
-    save_path=os.path.join(os.path.dirname(__file__), "test_outputs", "test_collapse_more_end.png"),
+    save_path=os.path.join(output_dir, "test_collapse_more_end.png"),
     show=False,
     config=config_more_end
 )
@@ -113,7 +118,7 @@ config_minimal = PlotConfig(
 plot_network(
     nn,
     title="Minimal Collapse: 3 start + dots + 3 end",
-    save_path=os.path.join(os.path.dirname(__file__), "test_outputs", "test_collapse_minimal.png"),
+    save_path=os.path.join(output_dir, "test_collapse_minimal.png"),
     show=False,
     config=config_minimal
 )
@@ -133,7 +138,7 @@ config_symmetric = PlotConfig(
 plot_network(
     nn,
     title="Symmetric Collapse: 7 start + dots + 7 end",
-    save_path=os.path.join(os.path.dirname(__file__), "test_outputs", "test_collapse_symmetric.png"),
+    save_path=os.path.join(output_dir, "test_collapse_symmetric.png"),
     show=False,
     config=config_symmetric
 )
