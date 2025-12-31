@@ -17,12 +17,14 @@ from dataclasses import dataclass, field
 try:
     from .NN_DEFINITION_UTILITIES import (
         NeuralNetwork,
-        FullyConnectedLayer
+        FullyConnectedLayer,
+        VectorInput
     )
 except ImportError:
     from NN_DEFINITION_UTILITIES import (
         NeuralNetwork,
-        FullyConnectedLayer
+        FullyConnectedLayer,
+        VectorInput
     )
 
 
@@ -225,6 +227,7 @@ class PlotConfig:
     neuron_edge_width: float = 1.5
     show_neuron_labels: bool = False
     neuron_numbering_reversed: bool = False
+    neuron_label_fontsize: int = 8
     show_neuron_text_labels: bool = True
     neuron_text_label_fontsize: int = 10
     neuron_text_label_offset: float = 0.8
@@ -397,7 +400,8 @@ class NetworkPlotter:
         save_path: Optional[str] = None,
         show: bool = True,
         dpi: int = 300,
-        format: Optional[str] = None
+        format: Optional[str] = None,
+        ax: Optional[plt.Axes] = None
     ) -> plt.Figure:
         """
         Plot a neural network structure.
@@ -409,6 +413,7 @@ class NetworkPlotter:
             show: Whether to display the plot
             dpi: DPI (dots per inch) for saving the figure (default: 300)
             format: File format ('png', 'svg', 'pdf', etc.). If None, inferred from save_path
+            ax: Optional matplotlib Axes object for plotting on an existing subplot
             
         Returns:
             matplotlib Figure object
@@ -430,9 +435,9 @@ class NetworkPlotter:
         is_linear = network.is_linear()
         
         if is_linear:
-            return self._plot_linear_network(network, title, save_path, show, dpi, format)
+            return self._plot_linear_network(network, title, save_path, show, dpi, format, ax)
         else:
-            return self._plot_branching_network(network, title, save_path, show, dpi, format)
+            return self._plot_branching_network(network, title, save_path, show, dpi, format, ax)
     
     def _plot_linear_network(
         self,
@@ -441,16 +446,21 @@ class NetworkPlotter:
         save_path: Optional[str],
         show: bool,
         dpi: int = 300,
-        format: Optional[str] = None
+        format: Optional[str] = None,
+        ax: Optional[plt.Axes] = None
     ) -> plt.Figure:
         """Plot a linear (sequential) neural network."""
         
-        # Create figure
-        fig, ax = plt.subplots(figsize=self.config.figsize)
+        # Create figure or use provided axes
+        if ax is None:
+            fig, ax = plt.subplots(figsize=self.config.figsize)
+        else:
+            fig = ax.get_figure()
         
         # Set background color
         if self.config.background_color != 'transparent':
-            fig.patch.set_facecolor(self.config.background_color)
+            if ax is None or ax.get_figure() is not None:
+                fig.patch.set_facecolor(self.config.background_color)
             ax.set_facecolor(self.config.background_color)
         
         # Calculate positions for all neurons
@@ -484,7 +494,7 @@ class NetworkPlotter:
         # Set title (if enabled)
         if self.config.show_title:
             plot_title = title or f"Neural Network: {network.name}"
-            ax.set_title(plot_title, fontsize=self.config.title_fontsize, pad=self.config.title_offset)
+            ax.set_title(plot_title, fontsize=self.config.title_fontsize, pad=self.config.title_offset, fontname=self.config.font_family)
         
         # Calculate and set axis limits based on neuron positions and boxes
         self._set_axis_limits(ax, network)
@@ -528,16 +538,21 @@ class NetworkPlotter:
         save_path: Optional[str],
         show: bool,
         dpi: int = 300,
-        format: Optional[str] = None
+        format: Optional[str] = None,
+        ax: Optional[plt.Axes] = None
     ) -> plt.Figure:
         """Plot a branching (non-linear) neural network."""
         
-        # Create figure
-        fig, ax = plt.subplots(figsize=self.config.figsize)
+        # Create figure or use provided axes
+        if ax is None:
+            fig, ax = plt.subplots(figsize=self.config.figsize)
+        else:
+            fig = ax.get_figure()
         
         # Set background color
         if self.config.background_color != 'transparent':
-            fig.patch.set_facecolor(self.config.background_color)
+            if ax is None or ax.get_figure() is not None:
+                fig.patch.set_facecolor(self.config.background_color)
             ax.set_facecolor(self.config.background_color)
         
         # Calculate positions using a layer-based approach
@@ -567,7 +582,7 @@ class NetworkPlotter:
         # Set title (if enabled)
         if self.config.show_title:
             plot_title = title or f"Neural Network: {network.name} (Branching)"
-            ax.set_title(plot_title, fontsize=self.config.title_fontsize, pad=self.config.title_offset)
+            ax.set_title(plot_title, fontsize=self.config.title_fontsize, pad=self.config.title_offset, fontname=self.config.font_family)
         
         # Calculate and set axis limits based on neuron positions and boxes
         self._set_axis_limits(ax, network)
@@ -859,7 +874,7 @@ class NetworkPlotter:
             max_label_width = 0
             max_label_height = 0
             if (self.config.show_neuron_text_labels and 
-                isinstance(layer, FullyConnectedLayer) and 
+                isinstance(layer, (FullyConnectedLayer, VectorInput)) and 
                 layer.neuron_labels is not None):
                 # Get the x-coordinate of the layer (all neurons in same layer have same x)
                 if positions:
@@ -931,11 +946,14 @@ class NetworkPlotter:
                     if is_collapsed:
                         collapse_info = self.collapsed_info[layer_id]
                         if i < dots_position:
-                            # First few neurons
+                            # First few neurons (indices 0 to show_start-1)
                             actual_index = i
                         else:
                             # Last few neurons (after the dots)
-                            actual_index = collapse_info['actual_count'] - (len(positions) - i - 1)
+                            # These represent the last show_end neurons of the layer
+                            # i.e., indices (actual_count - show_end) to (actual_count - 1)
+                            offset_from_end = len(positions) - 1 - i
+                            actual_index = collapse_info['actual_count'] - 1 - offset_from_end
                     else:
                         actual_index = i
                     
@@ -948,16 +966,20 @@ class NetworkPlotter:
                             total_neurons = layer.get_output_size()
                         actual_index = total_neurons - 1 - actual_index
                     
+                    # Convert to 1-based indexing for display
+                    display_index = actual_index + 1
+                    
                     ax.text(
-                        x, y, str(actual_index),
+                        x, y, str(display_index),
                         ha='center', va='center',
-                        fontsize=8,
+                        fontsize=self.config.neuron_label_fontsize,
+                        fontname=self.config.font_family,
                         zorder=11
                     )
                 
                 # Add custom text labels if requested (skip for dots position)
                 if (self.config.show_neuron_text_labels and 
-                    isinstance(layer, FullyConnectedLayer) and 
+                    isinstance(layer, (FullyConnectedLayer, VectorInput)) and 
                     layer.neuron_labels is not None and
                     not (is_collapsed and i == dots_position)):
                     
@@ -1058,6 +1080,7 @@ class NetworkPlotter:
                         ax.text(label_x, y, label_text,
                                 ha=alignment, va='center',
                                 fontsize=self.config.neuron_text_label_fontsize,
+                                fontname=self.config.font_family,
                                 zorder=11)
     
     def _draw_layer_boxes(self, ax: plt.Axes, network: NeuralNetwork) -> None:
@@ -1092,7 +1115,7 @@ class NetworkPlotter:
             max_y += padding
             
             # Extend box to include neuron labels if requested
-            if layer_style.box_include_neuron_labels and isinstance(layer, FullyConnectedLayer):
+            if layer_style.box_include_neuron_labels and isinstance(layer, (FullyConnectedLayer, VectorInput)):
                 if layer.neuron_labels is not None and self.config.show_neuron_text_labels:
                     # Labels are positioned at neuron_text_label_offset from neuron center
                     # Box already includes neuron_radius + padding from center
@@ -1360,7 +1383,9 @@ class NetworkPlotter:
             'softplus': 'Softplus',
             'softsign': 'Softsign',
             'swish': 'Swish',
-            'mish': 'Mish'
+            'mish': 'Mish',
+            'linear': 'Linear',
+            'none': 'None'
         }
         
         for layer_id, (x, y) in self.layer_positions.items():
@@ -1460,6 +1485,7 @@ class NetworkPlotter:
                 label,
                 ha='center', va='top',
                 fontsize=self.config.layer_name_fontsize,
+                fontname=self.config.font_family,
                 fontweight=fontweight,
                 bbox=bbox_props,
                 zorder=12
@@ -1665,6 +1691,7 @@ class NetworkPlotter:
                 variable_label,
                 ha=ha, va=va,
                 fontsize=self.config.layer_variable_names_fontsize,
+                fontname=self.config.font_family,
                 fontweight='bold',
                 multialignment=self.config.layer_variable_names_multialignment,
                 bbox=dict(boxstyle='round,pad=0.6', facecolor=bbox_color, alpha=0.7, edgecolor='black'),
@@ -1803,6 +1830,7 @@ class NetworkPlotter:
                 label_x, label_y, group.label,
                 ha='center', va='top',
                 fontsize=group.label_fontsize,
+                fontname=self.config.font_family,
                 color=group.label_color,
                 fontweight='bold',
                 zorder=10
@@ -1933,7 +1961,8 @@ def plot_network(
     show: bool = True,
     config: Optional[PlotConfig] = None,
     dpi: int = 300,
-    format: Optional[str] = None
+    format: Optional[str] = None,
+    ax: Optional[plt.Axes] = None
 ) -> plt.Figure:
     """
     Convenience function to plot a neural network.
@@ -1946,7 +1975,8 @@ def plot_network(
         config: Optional PlotConfig for customization
         dpi: DPI (dots per inch) for saving the figure (default: 300)
         format: File format ('png', 'svg', 'pdf', etc.). If None, inferred from save_path
-        
+        ax: Optional matplotlib Axes object for plotting on an existing subplot
+            
     Returns:
         matplotlib Figure object
         
@@ -1961,6 +1991,16 @@ def plot_network(
         >>> 
         >>> plot_network(nn, title="My First Network", save_path="my_network.png")
         >>> plot_network(nn, save_path="network.svg", dpi=150, format="svg")
+        >>> 
+        >>> # Plot on subplots:
+        >>> fig, axes = plt.subplots(1, 2, figsize=(12, 4))
+        >>> plot_network(nn, title="Network 1", ax=axes[0])
+        >>> plot_network(nn, title="Network 2", ax=axes[1])
+        >>> plt.show()
     """
+    # Force show=False when ax is provided (user must call plt.show() explicitly)
+    if ax is not None:
+        show = False
+    
     plotter = NetworkPlotter(config)
-    return plotter.plot_network(network, title, save_path, show, dpi, format)
+    return plotter.plot_network(network, title, save_path, show, dpi, format, ax)
