@@ -24,7 +24,45 @@ pip install matplotlib
 
 ---
 
-## Step 1: Basic Setup
+## Summary of Features Demonstrated
+
+| Demo | Feature | Description |
+|------|---------|-------------|
+| **Demo 1** | Basic Setup | Importing modules and configuring the environment |
+| **Demo 2** | Basic Network Creation | Creating `NeuralNetwork` and `FullyConnectedLayer` objects, background color |
+| **Demo 3** | Multi-Input/Output Networks | Using `parent_ids` for multi-head, multi-input, and skip connections |
+| **Demo 4** | Layer-Specific Styling | Custom colors, boxes, and connections via `LayerStyle` |
+| **Demo 5** | Spacing and Layout | Controlling layer spacing, neuron spacing, and branch spacing |
+| **Demo 6** | Complete Labeling | Neuron labels (LaTeX), layer labels, group brackets, variable names |
+| **Demo 7** | MLP Customization | Neuron collapsing for large layers with ellipsis notation |
+| **Demo 8** | CNN Customization | 🚧 Work in progress |
+| **Demo 9** | RNN Customization | 🚧 Work in progress |
+
+### Key Components
+
+**Network Container**
+- **`NeuralNetwork`**: Container for network architecture
+
+**Input Layers**
+- **`VectorInput`**: For tabular/vector input data
+- 🚧 `SequenceInput`: For sequential/time-series data (work in progress)
+- 🚧 `ImageInput`: For image data (work in progress)
+
+**Intermediate Layers**
+- **`FullyConnectedLayer`**: Dense layer with neurons, activation, and optional labels
+- 🚧 `ConvolutionalLayer`: CNN-based layers (work in progress)
+- 🚧 `RecurrentLayer`: RNN/LSTM/GRU layers (work in progress)
+
+**Customization**
+- **`PlotConfig`**: Configuration for all visualization options
+- **`LayerStyle`**: Per-layer styling (colors, boxes, collapsing)
+- **`LayerGroup`**: Bracket grouping for related layers
+
+For more details, explore the docstrings in `NN_PLOTTING_UTILITIES.py`.
+
+---
+
+## Demo 1: Basic Setup
 
 First, let's import the necessary modules. The library consists of two main components:
 - `NN_DEFINITION_UTILITIES`: Classes for defining neural network structures
@@ -33,9 +71,16 @@ First, let's import the necessary modules. The library consists of two main comp
 ```python
 import sys
 import os
+import importlib
 
 # Add the src directory to the path
 sys.path.insert(0, os.path.join(os.getcwd(), 'src'))
+
+# Import and reload the modules to pick up any changes
+import NN_DEFINITION_UTILITIES
+import NN_PLOTTING_UTILITIES
+importlib.reload(NN_DEFINITION_UTILITIES)
+importlib.reload(NN_PLOTTING_UTILITIES)
 
 # Import the main components
 from NN_DEFINITION_UTILITIES import NeuralNetwork, FullyConnectedLayer, VectorInput
@@ -52,13 +97,26 @@ print("✓ All modules imported successfully!")
 
 ---
 
-## Step 2: Creating a Simple Network
+## Demo 2: Creating a Simple Network
 
-Let's start by creating a basic feedforward neural network with an input layer, hidden layer, and output layer.
+Let's start by creating a basic feedforward neural network with an input layer, hidden layer, and output layer. We'll also demonstrate the `background_color` and font options.
 
 **Layer Types:**
 - **`VectorInput`**: For input layers - automatically treated as root layers (no parents needed)
 - **`FullyConnectedLayer`**: For hidden and output layers with optional activation functions
+
+**Appearance Options:**
+- `background_color`: Set to `"None"` for transparent, or any color name/RGB value
+- `font_family`: Font for all text (default: `"Times New Roman"`)
+
+**Font Size Parameters:**
+| Label Type | Parameter | Default |
+|------------|-----------|---------|
+| Title | `title_fontsize` | 16 |
+| Neuron labels | `neuron_text_label_fontsize` | 10 |
+| Layer names | `layer_name_fontsize` | 12 |
+| Variable names | `layer_variable_names_fontsize` | 11 |
+| Group brackets | `label_fontsize` (in `LayerGroup`) | 12 |
 
 ```python
 # Create a simple feedforward network
@@ -70,22 +128,38 @@ simple_nn.add_layer(VectorInput(num_features=4, name="Input"))
 simple_nn.add_layer(FullyConnectedLayer(num_neurons=6, activation="relu", name="Hidden"))
 simple_nn.add_layer(FullyConnectedLayer(num_neurons=2, activation="softmax", name="Output"))
 
-# Plot the network
+# Plot the network with custom appearance settings
 fig = plot_network(
     simple_nn, 
     title="Simple Feedforward Network",
     show=True,
-    config=PlotConfig(figsize=(8, 5))
+    config=PlotConfig(
+        figsize=(6, 4),
+        
+        # Background color options:
+        background_color="lightgray",     # Current setting
+        # background_color="white",       # White background
+        # background_color="None",        # Transparent background
+        # background_color="#F5F5F5",     # Custom hex color
+        
+        # Font family options:
+        font_family="Times New Roman",    # Current setting (serif)
+        # font_family="DejaVu Sans",      # Sans-serif option
+        # font_family="Arial",            # Another sans-serif
+        # font_family="Courier New",      # Monospace option
+        
+        title_fontsize=14
+    )
 )
 ```
 
     
-![png](readme_images/README_6_0.png)
+![png](readme_images/README_7_0.png)
     
 
 ---
 
-## Step 3: Multi-Input and Multi-Output Networks
+## Demo 3: Multi-Input and Multi-Output Networks
 
 The library supports non-sequential architectures through explicit parent-child relationships using `parent_ids`. This enables:
 - **Multi-output**: One layer feeding into multiple downstream layers (multi-head networks)
@@ -125,14 +199,14 @@ fig = plot_network(
 ```
 
     
-![png](readme_images/README_8_0.png)
+![png](readme_images/README_9_0.png)
     
 
 ---
 
-## Step 4: Layer-Specific Styling
+## Demo 4: Layer-Specific Styling
 
-Each layer can have its own visual style using `LayerStyle`. This includes custom colors for neurons and connections, boxes around layers, and more. Here we style the multi-output network from Step 3.
+Each layer can have its own visual style using `LayerStyle`. This includes custom colors for neurons and connections, boxes around layers, and more. Here we style the multi-output network from Demo 3.
 
 ```python
 # Define custom styles for each layer in the multi-input multi-output network
@@ -142,7 +216,13 @@ mimo_styles = {
         neuron_edge_color="#1976D2",   # Blue
         neuron_edge_width=2.5,
         connection_color="#1976D2",
-        connection_alpha=0.5
+        connection_alpha=0.5,
+        box_around_layer=True,        # Draw a box around this layer
+        box_fill_color="#BBDEFB",
+        box_edge_color="#1976D2",
+        box_edge_width=2.0,
+        box_padding=0.5,
+        box_corner_radius=0.3
     ),
     "Input B": LayerStyle(
         neuron_fill_color="#E3F2FD",  # Light blue
@@ -172,36 +252,122 @@ mimo_styles = {
     "Regression": LayerStyle(
         neuron_fill_color="#FFF3E0",
         neuron_edge_color="#E65100",
-        neuron_edge_width=2.5,
-        box_around_layer=True,
-        box_fill_color="#FFE0B2",
-        box_edge_color="#E65100",
-        box_edge_width=2.0,
-        box_padding=0.5,
-        box_corner_radius=0.3
+        neuron_edge_width=2.5
     )
 }
 
 styled_config = PlotConfig(
     figsize=(12, 6),
     layer_styles=mimo_styles,
-    show_layer_names=True,
-    layer_names_show_dim=True,
-    layer_names_show_activation=True
+    show_layer_names=True,    # Hide layer name labels
+    branch_spacing=4.5         # Increase spacing between Classification/Regression layers
 )
 
 fig = plot_network(multi_in_multi_out_nn, title="Styled Multi-Input Multi-Output Network", config=styled_config, show=True)
 ```
 
     
-![png](readme_images/README_10_0.png)
+![png](readme_images/README_11_0.png)
     
 
 ---
 
-## Step 5: Complete Labeling Configuration
+## Demo 5: Spacing and Layout Control
+
+Control the overall layout and spacing of your network visualization using `PlotConfig` parameters:
+
+| Parameter | Description |
+|-----------|-------------|
+| `layer_spacing` | Horizontal distance between adjacent layers |
+| `neuron_spacing` | Vertical distance between neurons within a layer |
+| `branch_spacing` | Vertical distance between layers that branch from the same parent |
+| `neuron_radius` | Size of each neuron circle |
+| `figsize` | Overall figure dimensions (width, height) |
+
+```python
+# Demonstrate spacing controls with side-by-side comparisons
+import matplotlib.pyplot as plt
+
+# --- Layer Spacing Comparison ---
+fig, axes = plt.subplots(1, 2, figsize=(14, 4))
+
+# When ax is provided, show is automatically forced to False
+plot_network(
+    simple_nn,
+    title="Default Layer Spacing",
+    config=PlotConfig(figsize=(6, 4)),
+    ax=axes[0]
+)
+
+plot_network(
+    simple_nn,
+    title="Increased (layer_spacing=4.0)",
+    config=PlotConfig(figsize=(6, 4), layer_spacing=4.0),
+    ax=axes[1]
+)
+
+plt.tight_layout()
+plt.show()
+
+# --- Neuron Spacing Comparison ---
+fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+plot_network(
+    simple_nn,
+    title="Default Neuron Spacing",
+    config=PlotConfig(figsize=(6, 4)),
+    ax=axes[0]
+)
+
+plot_network(
+    simple_nn,
+    title="Increased (neuron_spacing=1.5)",
+    config=PlotConfig(figsize=(6, 5), neuron_spacing=1.5),
+    ax=axes[1]
+)
+
+plt.tight_layout()
+plt.show()
+
+# --- Branch Spacing Comparison ---
+fig, axes = plt.subplots(1, 2, figsize=(16, 5))
+
+plot_network(
+    multi_in_multi_out_nn,
+    title="Default Branch Spacing",
+    config=PlotConfig(figsize=(8, 5)),
+    ax=axes[0]
+)
+
+plot_network(
+    multi_in_multi_out_nn,
+    title="Increased (branch_spacing=5.0)",
+    config=PlotConfig(figsize=(8, 5), branch_spacing=5.0),
+    ax=axes[1]
+)
+
+plt.tight_layout()
+plt.show()
+```
+
+    
+![png](readme_images/README_13_0.png)
+    
+
+    
+![png](readme_images/README_13_1.png)
+    
+
+    
+![png](readme_images/README_13_2.png)
+    
+
+---
+
+## Demo 6: Complete Labeling Configuration
 
 This section demonstrates all labeling features on an autoencoder architecture:
+
 - **Neuron labels**: LaTeX labels on individual neurons (input, latent, output)
 - **Layer name labels**: Configurable labels below each layer with toggleable components:
   - `layer_names_show_dim=True/False` — show/hide neuron count
@@ -216,10 +382,11 @@ This section demonstrates all labeling features on an autoencoder architecture:
 autoencoder = NeuralNetwork("Autoencoder for Dimensionality Reduction")
 
 # Input layer with LaTeX labels using VectorInput
+# Labels go from x_256 (top) to x_1 (bottom)
 input_id = autoencoder.add_layer(VectorInput(
     num_features=256,
     name="Input Layer",
-    neuron_labels=[f"$x_{{{i}}}$" for i in range(256, 0, -1)],
+    neuron_labels=[r"$x_{" + str(i) + "}$" for i in range(256, 0, -1)],
     label_position="left"
 ))
 
@@ -250,7 +417,7 @@ dec2_id = autoencoder.add_layer(FullyConnectedLayer(
     num_neurons=128, activation="relu", name="Decoder 2"
 ), parent_ids=[dec1_id])
 
-# Output layer with LaTeX labels
+# Output layer with LaTeX labels - matches input but with hat notation
 output_id = autoencoder.add_layer(FullyConnectedLayer(
     num_neurons=256,
     activation="sigmoid",
@@ -375,12 +542,13 @@ label_config = PlotConfig(
     # Figure settings
     figsize=(16, 10),
     background_color='white',
+    font_family='Times New Roman',
     
     # Neuron appearance
     neuron_radius=0.35,
     neuron_edge_width=2.0,
     
-    # Neuron text labels
+    # Neuron text labels (LaTeX labels on neurons)
     show_neuron_text_labels=True,
     neuron_text_label_fontsize=18,
     neuron_text_label_offset=0.85,
@@ -396,12 +564,11 @@ label_config = PlotConfig(
     collapse_neurons_end=4,
     
     # Layer names (below each layer)
-    # Toggle these to show/hide specific information:
     show_layer_names=True,
     layer_name_fontsize=12,
-    layer_names_show_type=False,        # Hide layer type (e.g., "FullyConnected")
-    layer_names_show_dim=True,          # Show neuron count (e.g., "256")
-    layer_names_show_activation=True,   # Show activation (e.g., "relu")
+    layer_names_show_type=False,        # Hide layer type
+    layer_names_show_dim=True,          # Show neuron count
+    layer_names_show_activation=True,   # Show activation
     layer_names_align_bottom=True,
     layer_names_bottom_offset=1.8,
     
@@ -424,10 +591,7 @@ label_config = PlotConfig(
     layer_styles=autoencoder_styles,
     
     # Layer group brackets
-    layer_groups=autoencoder_groups,
-    
-    # Font
-    font_family='Times New Roman'
+    layer_groups=autoencoder_groups
 )
 
 # Generate the plot
@@ -440,12 +604,12 @@ fig = plot_network(
 ```
 
     
-![png](readme_images/README_14_0.png)
+![png](readme_images/README_17_0.png)
     
 
 ---
 
-## Step 6: MLP-Specific Customization
+## Demo 7: MLP-Specific Customization
 
 For Multi-Layer Perceptrons (MLPs) with many neurons, you can customize how large layers are collapsed with ellipsis notation. This keeps visualizations readable while preserving the network structure.
 
@@ -494,22 +658,27 @@ mlp_config = PlotConfig(
     show_neuron_text_labels=True,
     neuron_text_label_fontsize=14,
     
+    # Neuron numbering (shows index inside each neuron)
+    show_neuron_labels=True,                 # Display neuron indices
+    neuron_numbering_reversed=True,          # N-1 at top, 0 at bottom (matches array indexing)
+    neuron_label_fontsize=12,                # Font size for neuron numbers
+    
     # Layer names
     show_layer_names=True,
     layer_names_show_dim=True,
     layer_names_show_activation=True
 )
 
-fig = plot_network(large_mlp, title="Large MLP with Neuron Collapsing", config=mlp_config, show=True)
+fig = plot_network(large_mlp, title="Large MLP with Neuron Collapsing and Numbering", config=mlp_config, show=True)
 ```
 
     
-![png](readme_images/README_16_0.png)
+![png](readme_images/README_19_0.png)
     
 
 ---
 
-## Step 7: CNN-Specific Customization
+## Demo 8: CNN-Specific Customization
 
 > ⚠️ **Work in Progress**: CNN layer visualization is under development. Future versions will include:
 > - Convolutional layer representations with kernel visualization
@@ -536,7 +705,7 @@ print("   - Stride and padding indicators")
 
 ---
 
-## Step 8: Recurrent Network Customization
+## Demo 9: Recurrent Network Customization
 
 > ⚠️ **Work in Progress**: Recurrent network visualization is under development. Future versions will include:
 > - LSTM/GRU cell representations
@@ -584,47 +753,8 @@ print("✓ Saved: showcase_outputs/autoencoder_labeling.png")
 ```
 
     
-![png](readme_images/README_22_1.png)
+![png](readme_images/README_25_1.png)
     
-
----
-
-## Summary of Features Demonstrated
-
-| Step | Feature | Description |
-|------|---------|-------------|
-| **Step 2** | Basic Network Creation | Creating `NeuralNetwork` and `FullyConnectedLayer` objects |
-| **Step 3** | Multi-Input/Output Networks | Using `parent_ids` for multi-head, multi-input, and skip connections |
-| **Step 4** | Layer-Specific Styling | Custom colors, boxes, and connections via `LayerStyle` |
-| **Step 5** | Complete Labeling | Neuron labels (LaTeX), layer labels, group brackets, variable names |
-| **Step 6** | MLP Customization | Neuron collapsing for large layers with ellipsis notation |
-| **Step 7** | CNN Customization | 🚧 Work in progress |
-| **Step 8** | RNN Customization | 🚧 Work in progress |
-
-### Key Components
-
-- **`NeuralNetwork`**: Container for network architecture
-- **`FullyConnectedLayer`**: Layer with neurons, activation, and optional labels
-- **`PlotConfig`**: Configuration for all visualization options
-- **`LayerStyle`**: Per-layer styling (colors, boxes, collapsing)
-- **`LayerGroup`**: Bracket grouping for related layers
-
-### Configuration Reference
-
-```python
-PlotConfig(
-    figsize=(width, height),           # Figure dimensions
-    show_neuron_text_labels=True,      # Show LaTeX labels on neurons
-    show_layer_names=True,             # Show layer info below
-    show_layer_variable_names=True,    # Show high-level descriptions
-    layer_styles={...},                # Per-layer styling
-    layer_groups=[...],                # Bracket grouping
-    max_neurons_per_layer=8,           # When to collapse
-    font_family='Times New Roman'      # Font choice
-)
-```
-
-For more details, explore the docstrings in `NN_PLOTTING_UTILITIES.py`.
 
 ---
 
