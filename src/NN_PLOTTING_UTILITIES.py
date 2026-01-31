@@ -1374,10 +1374,21 @@ class NetworkPlotter:
         all_x = []
         all_y = []
         
-        for positions in self.neuron_positions.values():
-            for x, y in positions:
-                all_x.append(x)
-                all_y.append(y)
+        for layer_id, positions in self.neuron_positions.items():
+            layer = network.get_layer(layer_id)
+            
+            # For GenericOutput, account for the box dimensions
+            if isinstance(layer, GenericOutput):
+                for x, y in positions:
+                    # Box dimensions (must match _draw_generic_output)
+                    box_width = 2.0
+                    box_height = 1.0
+                    all_x.extend([x - box_width/2, x + box_width/2])
+                    all_y.extend([y - box_height/2, y + box_height/2])
+            else:
+                for x, y in positions:
+                    all_x.append(x)
+                    all_y.append(y)
         
         if not all_x or not all_y:
             return
