@@ -909,29 +909,11 @@ class NetworkPlotter:
                     group_bottom = min(layer_bottoms)
                     actual_group_center = (group_top + group_bottom) / 2
                     
-                    # DEBUG
-                    print(f"DEBUG Level {level_idx}: layer_tops={layer_tops}, layer_bottoms={layer_bottoms}")
-                    print(f"DEBUG: group_top={group_top}, group_bottom={group_bottom}, center={actual_group_center}")
-                    print(f"DEBUG: Layer IDs at this level: {layer_ids}")
-                    for lid in layer_ids:
-                        print(f"DEBUG:   {lid}: temp_layer_pos={temp_layer_positions[lid]}")
-                    
                     # Calculate offset needed to center the group at y=0
                     centering_offset = -actual_group_center
-                    print(f"DEBUG: centering_offset={centering_offset}")
                     
                     # Third pass: apply the centering offset to all positions
                     for layer_id in layer_ids:
-                        # Apply offset to neuron positions
-                        self.neuron_positions[layer_id] = [
-                            (pos[0], pos[1] + centering_offset) 
-                            for pos in temp_positions[layer_id]
-                        ]
-                        
-                        # Apply offset to layer center position
-                        old_pos = temp_layer_positions[layer_id]
-                        self.layer_positions[layer_id] = (old_pos[0], old_pos[1] + centering_offset)
-                        print(f"DEBUG:   {layer_id}: final_layer_pos={self.layer_positions[layer_id]}")
                         # Apply offset to neuron positions
                         self.neuron_positions[layer_id] = [
                             (pos[0], pos[1] + centering_offset) 
@@ -987,6 +969,46 @@ class NetworkPlotter:
                         self.neuron_positions[layer_id] = positions
                         self.layer_positions[layer_id] = (x_pos, vertical_offset)
                         current_y -= (layer_height + vertical_padding)
+        
+        # After all levels are positioned, apply global centering to ensure
+        # the entire network (from top to bottom) is centered at y=0
+        all_tops = []
+        all_bottoms = []
+        
+        for layer_id in network.layers.keys():
+            layer = network.get_layer(layer_id)
+            
+            if isinstance(layer, ImageInput):
+                # Use visual rectangle bounds
+                layer_height = layer_heights.get(layer_id, 0)
+                if layer_id in self.layer_positions:
+                    center_y = self.layer_positions[layer_id][1]
+                    all_tops.append(center_y + layer_height / 2)
+                    all_bottoms.append(center_y - layer_height / 2)
+            else:
+                # Use neuron positions
+                if layer_id in self.neuron_positions and self.neuron_positions[layer_id]:
+                    y_positions = [pos[1] for pos in self.neuron_positions[layer_id]]
+                    all_tops.append(max(y_positions))
+                    all_bottoms.append(min(y_positions))
+        
+        if all_tops and all_bottoms:
+            global_top = max(all_tops)
+            global_bottom = min(all_bottoms)
+            global_center = (global_top + global_bottom) / 2
+            global_offset = -global_center
+            
+            # Apply global offset to ALL layers
+            for layer_id in network.layers.keys():
+                if layer_id in self.neuron_positions:
+                    self.neuron_positions[layer_id] = [
+                        (pos[0], pos[1] + global_offset) 
+                        for pos in self.neuron_positions[layer_id]
+                    ]
+                
+                if layer_id in self.layer_positions:
+                    old_pos = self.layer_positions[layer_id]
+                    self.layer_positions[layer_id] = (old_pos[0], old_pos[1] + global_offset)
     
     def _compute_layer_levels(self, network: NeuralNetwork) -> List[List[str]]:
         """
