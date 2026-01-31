@@ -322,6 +322,7 @@ class NetworkPlotter:
         self.neuron_positions: Dict[str, List[Tuple[float, float]]] = {}
         self.collapsed_layers: Dict[str, bool] = {}  # Track which layers are collapsed
         self.collapsed_info: Dict[str, Dict] = {}  # Store info about collapsed neurons
+        self.image_input_bounds: Dict[str, Tuple[float, float, float, float]] = {}  # Store (x_min, x_max, y_min, y_max) for ImageInput layers
     
     def _get_layer_style(self, layer_id: str, layer_name: Optional[str]) -> LayerStyle:
         """
@@ -1005,6 +1006,24 @@ class NetworkPlotter:
             # Taller than wide
             rect_width = base_size
             rect_height = base_size / aspect_ratio
+        
+        # Store bounds for axis limit calculation
+        # Account for RGB channel separation offset if applicable
+        if layer.display_mode == 'image' and layer.color_mode == 'rgb' and layer.separate_channels:
+            # RGB channels are offset by 0.15 * width/height
+            offset_x = rect_width * 0.15
+            offset_y = rect_height * 0.15
+            x_min = center_x - rect_width/2 - offset_x
+            x_max = center_x + rect_width/2 + offset_x
+            y_min = center_y - rect_height/2 - offset_y
+            y_max = center_y + rect_height/2 + offset_y
+        else:
+            x_min = center_x - rect_width/2
+            x_max = center_x + rect_width/2
+            y_min = center_y - rect_height/2
+            y_max = center_y + rect_height/2
+        
+        self.image_input_bounds[layer_id] = (x_min, x_max, y_min, y_max)
         
         # Handle different display modes
         if layer.display_mode == 'text':
@@ -1697,6 +1716,11 @@ class NetworkPlotter:
             for x, y in positions:
                 all_x.append(x)
                 all_y.append(y)
+        
+        # Add ImageInput bounds
+        for layer_id, (x_min, x_max, y_min, y_max) in self.image_input_bounds.items():
+            all_x.extend([x_min, x_max])
+            all_y.extend([y_min, y_max])
         
         if not all_x or not all_y:
             return
