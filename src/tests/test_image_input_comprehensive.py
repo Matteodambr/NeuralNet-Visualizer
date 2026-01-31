@@ -67,7 +67,7 @@ def test_text_mode_with_color():
     plotter = NetworkPlotter(config)
     mpl.rcParams['text.usetex'] = False
     
-    output_path = os.path.join(os.path.dirname(__file__), "../../PlottedNetworks/comprehensive_text_mode.png")
+    output_path = os.path.join(os.path.dirname(__file__), "../test_outputs/comprehensive_text_mode.png")
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     
     plotter.plot_network(
@@ -112,7 +112,8 @@ def test_bw_mode(cat_image_path):
     plotter = NetworkPlotter(config)
     mpl.rcParams['text.usetex'] = False
     
-    output_path = os.path.join(os.path.dirname(__file__), "../../PlottedNetworks/comprehensive_bw_mode.png")
+    output_path = os.path.join(os.path.dirname(__file__), "../test_outputs/comprehensive_bw_mode.png")
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     
     plotter.plot_network(
         network,
@@ -157,7 +158,8 @@ def test_rgb_single_mode(cat_image_path):
     plotter = NetworkPlotter(config)
     mpl.rcParams['text.usetex'] = False
     
-    output_path = os.path.join(os.path.dirname(__file__), "../../PlottedNetworks/comprehensive_rgb_single.png")
+    output_path = os.path.join(os.path.dirname(__file__), "../test_outputs/comprehensive_rgb_single.png")
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     
     plotter.plot_network(
         network,
@@ -202,7 +204,8 @@ def test_rgb_separated_mode(cat_image_path):
     plotter = NetworkPlotter(config)
     mpl.rcParams['text.usetex'] = False
     
-    output_path = os.path.join(os.path.dirname(__file__), "../../PlottedNetworks/comprehensive_rgb_separated.png")
+    output_path = os.path.join(os.path.dirname(__file__), "../test_outputs/comprehensive_rgb_separated.png")
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     
     plotter.plot_network(
         network,
