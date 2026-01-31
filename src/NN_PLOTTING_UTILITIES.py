@@ -1098,13 +1098,23 @@ class NetworkPlotter:
             center_x - width/2, center_x + width/2,
             center_y - height/2, center_y + height/2
         ]
-        ax.imshow(img_array, extent=extent, aspect='auto', zorder=10)
+        im = ax.imshow(img_array, extent=extent, aspect='auto', zorder=10)
         
-        # Draw border if rounded corners are requested
+        # Apply rounded clipping if requested
         if layer.rounded_corners:
+            corner_radius = layer.corner_radius
+            # Create a rounded rectangle patch for clipping
+            clip_rect = mpatches.FancyBboxPatch(
+                (center_x - width/2, center_y - height/2),
+                width, height,
+                boxstyle=f"round,pad=0,rounding_size={corner_radius}",
+                transform=ax.transData
+            )
+            im.set_clip_path(clip_rect)
+            
+            # Draw border
             edge_color = layer_style.neuron_edge_color or self.config.neuron_edge_color
             edge_width = layer_style.neuron_edge_width if layer_style.neuron_edge_width is not None else self.config.neuron_edge_width
-            corner_radius = layer.corner_radius
             
             rect = mpatches.FancyBboxPatch(
                 (center_x - width/2, center_y - height/2),
@@ -1192,10 +1202,20 @@ class NetworkPlotter:
                 ch_center_x - width/2, ch_center_x + width/2,
                 ch_center_y - height/2, ch_center_y + height/2
             ]
-            ax.imshow(tinted, extent=extent, aspect='auto', zorder=10, alpha=0.7)
+            im = ax.imshow(tinted, extent=extent, aspect='auto', zorder=10, alpha=0.7)
             
-            # Draw border
+            # Apply rounded clipping if requested
             if layer.rounded_corners:
+                # Create a rounded rectangle patch for clipping
+                clip_rect = mpatches.FancyBboxPatch(
+                    (ch_center_x - width/2, ch_center_y - height/2),
+                    width, height,
+                    boxstyle=f"round,pad=0,rounding_size={corner_radius}",
+                    transform=ax.transData
+                )
+                im.set_clip_path(clip_rect)
+                
+                # Draw border
                 rect = mpatches.FancyBboxPatch(
                     (ch_center_x - width/2, ch_center_y - height/2),
                     width, height,
