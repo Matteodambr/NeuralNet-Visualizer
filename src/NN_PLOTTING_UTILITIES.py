@@ -2128,13 +2128,11 @@ class NetworkPlotter:
                 else:
                     # Regular layers - calculate offset dynamically based on layer height
                     if layer_id in self.neuron_positions and self.neuron_positions[layer_id]:
-                        # Calculate the actual vertical extent of the layer
+                        # Find the bottom of the layer
                         layer_positions = self.neuron_positions[layer_id]
                         min_y = min(pos[1] for pos in layer_positions)
-                        max_y = max(pos[1] for pos in layer_positions)
-                        layer_height = max_y - min_y
                         
-                        # Position label below the bottom neuron with spacing proportional to layer size
+                        # Position label below the bottom neuron with spacing
                         # Use neuron radius for additional spacing
                         label_y = min_y - self.config.neuron_radius - base_offset
                     else:
