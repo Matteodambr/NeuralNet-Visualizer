@@ -26,6 +26,10 @@ except ImportError as e:
 
 from typing import List, Dict, Tuple, Optional, Set
 from dataclasses import dataclass, field
+import numpy as np
+from PIL import Image
+import io
+import requests
 
 # Import from the definition utilities
 try:
@@ -33,6 +37,7 @@ try:
         NeuralNetwork,
         FullyConnectedLayer,
         VectorInput,
+        ImageInput,
         VectorOutput,
         GenericOutput
     )
@@ -41,6 +46,7 @@ except ImportError:
         NeuralNetwork,
         FullyConnectedLayer,
         VectorInput,
+        ImageInput,
         VectorOutput,
         GenericOutput
     )
@@ -278,7 +284,7 @@ class PlotConfig:
     layer_names_show_dim: bool = True
     layer_names_show_activation: bool = False
     layer_names_align_bottom: bool = False
-    layer_names_offset: float = 0.4
+    layer_names_offset: float = 0.8  # Increased from 0.4 to prevent overlap
     layer_names_bottom_offset: float = 2.0
     layer_names_show_box: bool = True
     layer_names_line_styles: List[str] = field(default_factory=list)
@@ -341,6 +347,7 @@ class NetworkPlotter:
         self.neuron_positions: Dict[str, List[Tuple[float, float]]] = {}
         self.collapsed_layers: Dict[str, bool] = {}  # Track which layers are collapsed
         self.collapsed_info: Dict[str, Dict] = {}  # Store info about collapsed neurons
+        self.image_input_bounds: Dict[str, Tuple[float, float, float, float]] = {}  # Store (x_min, x_max, y_min, y_max) for ImageInput layers
         self.generic_output_boxes: Dict[str, Tuple[float, float]] = {}  # Store GenericOutput box dimensions (width, height)
     
     def _get_layer_style(self, layer_id: str, layer_name: Optional[str]) -> LayerStyle:
@@ -660,6 +667,16 @@ class NetworkPlotter:
             # X position for this layer (apply spacing multiplier)
             x_pos = i * self.config.layer_spacing * self.config.layer_spacing_multiplier
             
+            # Special handling for ImageInput layers - they only need a single position
+            # for connection purposes, regardless of their visual representation
+            if isinstance(layer, ImageInput):
+                # Single position at center for connections
+                positions = [(x_pos, 0.0)]
+                self.neuron_positions[layer_id] = positions
+                self.layer_positions[layer_id] = (x_pos, 0.0)
+                self.collapsed_layers[layer_id] = False
+                continue
+            
             # Special handling for GenericOutput - just store center position
             if isinstance(layer, GenericOutput):
                 # For GenericOutput, we just need the center position
@@ -735,6 +752,12 @@ class NetworkPlotter:
             for layer_id in layer_ids:
                 layer = network.get_layer(layer_id)
                 
+                # Special handling for ImageInput layers - they only need a single position
+                if isinstance(layer, ImageInput):
+                    layer_display_counts[layer_id] = 1
+                    self.collapsed_layers[layer_id] = False
+                    continue
+                
                 # Special handling for GenericOutput
                 if isinstance(layer, GenericOutput):
                     layer_display_counts[layer_id] = 1  # Single point for center
@@ -778,30 +801,70 @@ class NetworkPlotter:
                 
                 layer_display_counts[layer_id] = num_neurons_display
         
+        # Dictionary to store layer heights across all levels (needed for global centering)
+        layer_heights = {}
+        
         # Calculate positions for each level
         for level_idx, layer_ids in enumerate(levels):
             # X position for this level (apply spacing multiplier)
             x_pos = level_idx * self.config.layer_spacing * self.config.layer_spacing_multiplier
             
-            # Calculate heights for all layers in this level
-            layer_heights = {}
+            # Constants for ImageInput sizing
+            DEFAULT_IMAGE_SIZE_MULTIPLIER = 15  # Default size multiplier for ImageInput rectangles
+            RGB_CHANNEL_OFFSET_RATIO = 0.15  # Offset ratio for separated RGB channels
+            
             for layer_id in layer_ids:
-                num_neurons_display = layer_display_counts[layer_id]
-                total_height = (num_neurons_display - 1) * self.config.neuron_spacing
-                layer_heights[layer_id] = total_height
+                layer = network.get_layer(layer_id)
+                
+                # Special handling for ImageInput layers - use actual visual height
+                if isinstance(layer, ImageInput):
+                    # Calculate the visual height of the ImageInput rectangle
+                    if layer.custom_size is not None:
+                        size_factor = layer.custom_size
+                    else:
+                        # Default size based on aspect ratio
+                        # Validate height is non-zero to prevent division by zero
+                        if layer.height <= 0:
+                            raise ValueError(f"ImageInput layer {layer_id} has invalid height: {layer.height}")
+                        
+                        aspect_ratio = layer.width / layer.height
+                        if aspect_ratio > 1:
+                            size_factor = self.config.neuron_radius * DEFAULT_IMAGE_SIZE_MULTIPLIER
+                        else:
+                            size_factor = self.config.neuron_radius * DEFAULT_IMAGE_SIZE_MULTIPLIER / aspect_ratio
+                    
+                    # For RGB separated channels, account for offset
+                    if layer.display_mode == "image" and layer.color_mode == "rgb" and layer.separate_channels:
+                        offset = size_factor * RGB_CHANNEL_OFFSET_RATIO
+                        total_height = size_factor + 2 * offset
+                    else:
+                        total_height = size_factor
+                    
+                    layer_heights[layer_id] = total_height
+                else:
+                    num_neurons_display = layer_display_counts[layer_id]
+                    total_height = (num_neurons_display - 1) * self.config.neuron_spacing
+                    layer_heights[layer_id] = total_height
             
             vertical_padding = self.config.branch_spacing  # Extra space between layers at the same level
             
             if level_idx == 0:
-                # First level: stack all layers centered around y=0
-                total_height_all = sum(layer_heights.values()) + (len(layer_ids) - 1) * vertical_padding
+                # First level: stack layers from top to bottom
+                # Note: Global centering at the end will center the entire network
+                level_0_heights = {lid: layer_heights[lid] for lid in layer_ids if lid in layer_heights}
+                total_height_all = sum(level_0_heights.values()) + (len(layer_ids) - 1) * vertical_padding
+                
+                # Start from the top
                 current_y = total_height_all / 2
                 
                 for layer_id in layer_ids:
                     layer_height = layer_heights[layer_id]
                     num_neurons_display = layer_display_counts[layer_id]
+                    
+                    # Calculate the center position of this layer
                     vertical_offset = current_y - layer_height / 2
                     
+                    # For neuron positioning
                     y_start = vertical_offset - layer_height / 2
                     positions = []
                     for j in range(num_neurons_display):
@@ -810,6 +873,8 @@ class NetworkPlotter:
                     
                     self.neuron_positions[layer_id] = positions
                     self.layer_positions[layer_id] = (x_pos, vertical_offset)
+                    
+                    # Move down for next layer
                     current_y -= (layer_height + vertical_padding)
             else:
                 # Group layers by their parent set (layers with same parents should be distributed together)
@@ -853,6 +918,31 @@ class NetworkPlotter:
                         self.neuron_positions[layer_id] = positions
                         self.layer_positions[layer_id] = (x_pos, vertical_offset)
                         current_y -= (layer_height + vertical_padding)
+        
+        # Simplified centering: For level 0, center based on layer center positions
+        # (not visual bounds), treating ImageInput like any other layer
+        if levels and levels[0]:
+            level_0_centers = []
+            for layer_id in levels[0]:
+                if layer_id in self.layer_positions:
+                    level_0_centers.append(self.layer_positions[layer_id][1])
+            
+            if level_0_centers:
+                # Center the level 0 layers at y=0
+                level_0_center = (max(level_0_centers) + min(level_0_centers)) / 2
+                centering_offset = -level_0_center
+                
+                # Apply offset to ALL layers
+                for layer_id in network.layers.keys():
+                    if layer_id in self.neuron_positions:
+                        self.neuron_positions[layer_id] = [
+                            (pos[0], pos[1] + centering_offset) 
+                            for pos in self.neuron_positions[layer_id]
+                        ]
+                    
+                    if layer_id in self.layer_positions:
+                        old_pos = self.layer_positions[layer_id]
+                        self.layer_positions[layer_id] = (old_pos[0], old_pos[1] + centering_offset)
     
     def _compute_layer_levels(self, network: NeuralNetwork) -> List[List[str]]:
         """
@@ -886,10 +976,458 @@ class NetworkPlotter:
         
         return levels
     
+    def _load_image(self, image_path: str) -> Optional[np.ndarray]:
+        """Load an image from a file path or URL.
+        
+        Supports any image format that PIL/Pillow can open, including:
+        - JPEG (.jpg, .jpeg)
+        - PNG (.png) - including with alpha channel (RGBA)
+        - GIF (.gif)
+        - BMP (.bmp)
+        - TIFF (.tif, .tiff)
+        - WebP (.webp)
+        - And many more formats supported by PIL
+        
+        Images with alpha channels (RGBA) are automatically converted to RGB
+        with a white background. All other color modes are converted to RGB or
+        kept as grayscale (L mode).
+        
+        Args:
+            image_path: Path to local file or URL to image
+            
+        Returns:
+            numpy array with shape (H, W, 3) for RGB or (H, W) for grayscale, or None if failed
+        """
+        try:
+            if image_path.startswith(('http://', 'https://')):
+                # Load from URL
+                response = requests.get(image_path, timeout=10)
+                response.raise_for_status()
+                img = Image.open(io.BytesIO(response.content))
+            else:
+                # Load from local file
+                img = Image.open(image_path)
+            
+            # Convert to RGB if it has an alpha channel or is in other mode
+            if img.mode == 'RGBA':
+                # Create white background
+                background = Image.new('RGB', img.size, (255, 255, 255))
+                background.paste(img, mask=img.split()[3])  # Use alpha channel as mask
+                img = background
+            elif img.mode != 'RGB' and img.mode != 'L':
+                img = img.convert('RGB')
+            
+            # Convert to numpy array
+            img_array = np.array(img)
+            return img_array
+        except Exception as e:
+            print(f"Warning: Could not load image from {image_path}: {e}")
+            return None
+    
+    def _apply_image_transforms(self, img_array: np.ndarray, magnification: float, 
+                                translation_x: float, translation_y: float,
+                                target_aspect: Optional[float] = None) -> np.ndarray:
+        """Apply magnification and translation to an image.
+        
+        Args:
+            img_array: Input image as numpy array
+            magnification: Magnification factor (>1 zooms in)
+            translation_x: Horizontal offset from center (-1 to 1)
+            translation_y: Vertical offset from center (-1 to 1)
+            target_aspect: Optional target aspect ratio (width/height) to crop to
+            
+        Returns:
+            Transformed image array
+        """
+        h, w = img_array.shape[:2]
+        
+        # Calculate crop dimensions based on magnification
+        crop_h = int(h / magnification)
+        crop_w = int(w / magnification)
+        
+        # If target aspect ratio is specified, adjust crop dimensions
+        if target_aspect is not None:
+            current_aspect = crop_w / crop_h
+            if current_aspect > target_aspect:
+                # Too wide, reduce width
+                crop_w = int(crop_h * target_aspect)
+            elif current_aspect < target_aspect:
+                # Too tall, reduce height
+                crop_h = int(crop_w / target_aspect)
+        
+        # Calculate center position with translation
+        center_x = w / 2 + translation_x * (w / 2)
+        center_y = h / 2 + translation_y * (h / 2)
+        
+        # Calculate crop boundaries
+        left = int(max(0, center_x - crop_w / 2))
+        right = int(min(w, center_x + crop_w / 2))
+        top = int(max(0, center_y - crop_h / 2))
+        bottom = int(min(h, center_y + crop_h / 2))
+        
+        # Crop the image
+        cropped = img_array[top:bottom, left:right]
+        
+        return cropped
+    
+    def _convert_to_bw(self, img_array: np.ndarray) -> np.ndarray:
+        """Convert RGB image to black and white.
+        
+        Args:
+            img_array: Input image as numpy array (H, W, 3) or (H, W)
+            
+        Returns:
+            Black and white image array (H, W, 3) with grayscale values in all channels
+        """
+        if len(img_array.shape) == 2:
+            # Already grayscale, convert to RGB format
+            return np.stack([img_array] * 3, axis=-1)
+        elif img_array.shape[2] >= 3:
+            # Convert RGB to grayscale using standard weights
+            gray = np.dot(img_array[..., :3], [0.299, 0.587, 0.114])
+            # Convert back to 3-channel for display
+            return np.stack([gray] * 3, axis=-1).astype(np.uint8)
+        else:
+            return img_array
+    
+    def _draw_image_input_layer(self, ax: plt.Axes, layer: ImageInput, 
+                                layer_id: str, positions: List[Tuple[float, float]]) -> None:
+        """Draw an ImageInput layer as a rectangle with image or text.
+        
+        Args:
+            ax: Matplotlib axes
+            layer: ImageInput layer object
+            layer_id: Layer identifier
+            positions: List of neuron positions (used to get center position)
+        """
+        if not positions:
+            return
+        
+        # Get layer style
+        layer_style = self._get_layer_style(layer_id, layer.name)
+        
+        # Calculate center position - use the center of all neuron positions
+        center_x = np.mean([p[0] for p in positions])
+        center_y = np.mean([p[1] for p in positions])
+        
+        # Determine rectangle dimensions based on image aspect ratio
+        aspect_ratio = layer.width / layer.height
+        
+        # Use custom_size if provided, otherwise calculate based on aspect ratio
+        if layer.custom_size is not None:
+            # Use the custom size directly
+            if aspect_ratio > 1:
+                # Wider than tall
+                rect_width = layer.custom_size * aspect_ratio
+                rect_height = layer.custom_size
+            else:
+                # Taller than wide
+                rect_width = layer.custom_size
+                rect_height = layer.custom_size / aspect_ratio
+        else:
+            # Base size for the rectangle (will be scaled by aspect ratio)
+            base_size = self.config.neuron_spacing * 2.0  # Make it reasonably sized
+            
+            if aspect_ratio > 1:
+                # Wider than tall
+                rect_width = base_size * aspect_ratio
+                rect_height = base_size
+            else:
+                # Taller than wide
+                rect_width = base_size
+                rect_height = base_size / aspect_ratio
+        
+        # Store bounds for axis limit calculation
+        # Account for RGB channel separation offset if applicable
+        if layer.display_mode == 'image' and layer.color_mode == 'rgb' and layer.separate_channels:
+            # RGB channels are offset by 0.15 * width/height
+            offset_x = rect_width * 0.15
+            offset_y = rect_height * 0.15
+            x_min = center_x - rect_width/2 - offset_x
+            x_max = center_x + rect_width/2 + offset_x
+            y_min = center_y - rect_height/2 - offset_y
+            y_max = center_y + rect_height/2 + offset_y
+        else:
+            x_min = center_x - rect_width/2
+            x_max = center_x + rect_width/2
+            y_min = center_y - rect_height/2
+            y_max = center_y + rect_height/2
+        
+        self.image_input_bounds[layer_id] = (x_min, x_max, y_min, y_max)
+        
+        # Handle different display modes
+        if layer.display_mode == 'text':
+            # Draw a single rounded rectangle with text
+            self._draw_text_mode_rectangle(ax, layer, center_x, center_y, 
+                                          rect_width, rect_height, layer_style)
+        
+        elif layer.display_mode == 'image':
+            # Check if we should separate RGB channels
+            if layer.color_mode == 'rgb' and layer.separate_channels:
+                # Draw 3 overlapped rectangles, one for each RGB channel
+                self._draw_rgb_channels_rectangles(ax, layer, center_x, center_y,
+                                                  rect_width, rect_height, layer_style)
+            else:
+                # Draw a single rectangle with the image
+                self._draw_single_image_rectangle(ax, layer, center_x, center_y,
+                                                 rect_width, rect_height, layer_style)
+    
+    def _draw_text_mode_rectangle(self, ax: plt.Axes, layer: ImageInput,
+                                  center_x: float, center_y: float,
+                                  width: float, height: float,
+                                  layer_style) -> None:
+        """Draw a rounded rectangle with text for ImageInput in text mode."""
+        # Get colors
+        fill_color = layer_style.neuron_fill_color or 'lightyellow'
+        edge_color = layer_style.neuron_edge_color or self.config.neuron_edge_color
+        edge_width = layer_style.neuron_edge_width if layer_style.neuron_edge_width is not None else self.config.neuron_edge_width
+        
+        # Corner radius
+        corner_radius = layer.corner_radius if layer.rounded_corners else 0
+        
+        # Draw rounded rectangle
+        rect = mpatches.FancyBboxPatch(
+            (center_x - width/2, center_y - height/2),
+            width, height,
+            boxstyle=f"round,pad=0,rounding_size={corner_radius}",
+            facecolor=fill_color,
+            edgecolor=edge_color,
+            linewidth=edge_width,
+            zorder=10
+        )
+        ax.add_patch(rect)
+        
+        # Determine text to display
+        if layer.custom_text is not None:
+            text = layer.custom_text
+            fontsize = layer.custom_text_size
+        else:
+            # Default text showing dimensions
+            text = f"{layer.height}×{layer.width}×{layer.channels}"
+            fontsize = 10
+        
+        # Calculate text bounds to ensure it fits - be aggressive to prevent overflow
+        # Use larger padding and tighter constraints
+        TEXT_PADDING_FACTOR = 1.6  # 30% margin on each side for safety (1 + 0.3 + 0.3)
+        FONT_SCALE_REDUCTION = 0.90  # Apply 10% reduction for comfortable fit
+        MIN_FONT_SIZE = 4  # Minimum readable font size
+        
+        max_iterations = 20  # More iterations for better fit
+        for iteration in range(max_iterations):
+            # Create temporary text to measure size
+            temp_text = ax.text(
+                center_x, center_y, text,
+                ha='center', va='center',
+                fontsize=fontsize,
+                fontname=self.config.font_family,
+                visible=False  # Make invisible for measurement
+            )
+            
+            # Get text bounding box in data coordinates
+            renderer = ax.figure.canvas.get_renderer()
+            bbox = temp_text.get_window_extent(renderer=renderer)
+            bbox_data = bbox.transformed(ax.transData.inverted())
+            text_width = bbox_data.width
+            text_height = bbox_data.height
+            
+            # Remove temporary text
+            temp_text.remove()
+            
+            # Calculate required padding (30% margin on each side for safety)
+            required_width = text_width * TEXT_PADDING_FACTOR
+            required_height = text_height * TEXT_PADDING_FACTOR
+            
+            # Check if text fits
+            if required_width <= width and required_height <= height:
+                break
+            
+            # Scale down the font size more aggressively
+            scale_factor = min(width / required_width, height / required_height) * FONT_SCALE_REDUCTION
+            fontsize = max(MIN_FONT_SIZE, fontsize * scale_factor)  # Don't go below minimum
+        
+        # Draw the final text with correct size
+        ax.text(
+            center_x, center_y, text,
+            ha='center', va='center',
+            fontsize=fontsize,
+            fontname=self.config.font_family,
+            zorder=11
+        )
+    
+    def _draw_single_image_rectangle(self, ax: plt.Axes, layer: ImageInput,
+                                     center_x: float, center_y: float,
+                                     width: float, height: float,
+                                     layer_style) -> None:
+        """Draw a rectangle with an actual image for ImageInput in single_image mode."""
+        # Load the image
+        img_array = self._load_image(layer.image_path)
+        
+        if img_array is None:
+            # Fallback to text mode if image can't be loaded
+            self._draw_text_mode_rectangle(ax, layer, center_x, center_y, 
+                                          width, height, layer_style)
+            return
+        
+        # Convert to BW if requested
+        if layer.color_mode == 'bw':
+            img_array = self._convert_to_bw(img_array)
+        
+        # Apply transforms (magnification, translation)
+        img_array = self._apply_image_transforms(
+            img_array, 
+            layer.magnification,
+            layer.translation_x,
+            layer.translation_y,
+            target_aspect=layer.width / layer.height
+        )
+        
+        # Display the image
+        extent = [
+            center_x - width/2, center_x + width/2,
+            center_y - height/2, center_y + height/2
+        ]
+        im = ax.imshow(img_array, extent=extent, aspect='auto', zorder=10)
+        
+        # Apply rounded clipping if requested
+        if layer.rounded_corners:
+            corner_radius = layer.corner_radius
+            # Create a rounded rectangle patch for clipping
+            clip_rect = mpatches.FancyBboxPatch(
+                (center_x - width/2, center_y - height/2),
+                width, height,
+                boxstyle=f"round,pad=0,rounding_size={corner_radius}",
+                transform=ax.transData
+            )
+            im.set_clip_path(clip_rect)
+            
+            # Draw border
+            edge_color = layer_style.neuron_edge_color or self.config.neuron_edge_color
+            edge_width = layer_style.neuron_edge_width if layer_style.neuron_edge_width is not None else self.config.neuron_edge_width
+            
+            rect = mpatches.FancyBboxPatch(
+                (center_x - width/2, center_y - height/2),
+                width, height,
+                boxstyle=f"round,pad=0,rounding_size={corner_radius}",
+                facecolor='none',
+                edgecolor=edge_color,
+                linewidth=edge_width,
+                zorder=11
+            )
+            ax.add_patch(rect)
+    
+    def _draw_rgb_channels_rectangles(self, ax: plt.Axes, layer: ImageInput,
+                                      center_x: float, center_y: float,
+                                      width: float, height: float,
+                                      layer_style) -> None:
+        """Draw 3 overlapped rectangles for RGB channels in rgb_channels mode."""
+        # Load the image
+        img_array = self._load_image(layer.image_path)
+        
+        if img_array is None:
+            # Fallback to text mode if image can't be loaded
+            self._draw_text_mode_rectangle(ax, layer, center_x, center_y, 
+                                          width, height, layer_style)
+            return
+        
+        # Convert to BW if requested (though rgb_channels mode usually expects RGB)
+        if layer.color_mode == 'bw':
+            img_array = self._convert_to_bw(img_array)
+        
+        # Apply transforms
+        img_array = self._apply_image_transforms(
+            img_array,
+            layer.magnification,
+            layer.translation_x,
+            layer.translation_y,
+            target_aspect=layer.width / layer.height
+        )
+        
+        # Separate into channels
+        if len(img_array.shape) == 3 and img_array.shape[2] >= 3:
+            r_channel = img_array[:, :, 0]
+            g_channel = img_array[:, :, 1]
+            b_channel = img_array[:, :, 2]
+        else:
+            # Grayscale - use same for all channels
+            if len(img_array.shape) == 3:
+                grayscale = img_array[:, :, 0]
+            else:
+                grayscale = img_array
+            r_channel = g_channel = b_channel = grayscale
+        
+        # Offset between rectangles for overlap effect
+        offset_x = width * 0.15
+        offset_y = height * 0.15
+        
+        # Draw each channel as a separate rectangle, slightly offset
+        channels = [
+            (r_channel, 'red', -offset_x, offset_y),      # Red - left/top
+            (g_channel, 'green', 0, 0),                    # Green - center
+            (b_channel, 'blue', offset_x, -offset_y)       # Blue - right/bottom
+        ]
+        
+        edge_color = layer_style.neuron_edge_color or self.config.neuron_edge_color
+        edge_width = layer_style.neuron_edge_width if layer_style.neuron_edge_width is not None else self.config.neuron_edge_width
+        corner_radius = layer.corner_radius if layer.rounded_corners else 0
+        
+        for channel_data, color_name, dx, dy in channels:
+            # Create RGB image from single channel with color tint
+            if color_name == 'red':
+                tinted = np.stack([channel_data, channel_data * 0.3, channel_data * 0.3], axis=-1)
+            elif color_name == 'green':
+                tinted = np.stack([channel_data * 0.3, channel_data, channel_data * 0.3], axis=-1)
+            else:  # blue
+                tinted = np.stack([channel_data * 0.3, channel_data * 0.3, channel_data], axis=-1)
+            
+            tinted = tinted.astype(np.uint8)
+            
+            # Calculate position for this channel
+            ch_center_x = center_x + dx
+            ch_center_y = center_y + dy
+            
+            # Display the channel image
+            extent = [
+                ch_center_x - width/2, ch_center_x + width/2,
+                ch_center_y - height/2, ch_center_y + height/2
+            ]
+            im = ax.imshow(tinted, extent=extent, aspect='auto', zorder=10, alpha=0.7)
+            
+            # Apply rounded clipping if requested
+            if layer.rounded_corners:
+                # Create a rounded rectangle patch for clipping
+                clip_rect = mpatches.FancyBboxPatch(
+                    (ch_center_x - width/2, ch_center_y - height/2),
+                    width, height,
+                    boxstyle=f"round,pad=0,rounding_size={corner_radius}",
+                    transform=ax.transData
+                )
+                im.set_clip_path(clip_rect)
+                
+                # Draw border
+                rect = mpatches.FancyBboxPatch(
+                    (ch_center_x - width/2, ch_center_y - height/2),
+                    width, height,
+                    boxstyle=f"round,pad=0,rounding_size={corner_radius}",
+                    facecolor='none',
+                    edgecolor=edge_color,
+                    linewidth=edge_width,
+                    zorder=11
+                )
+                ax.add_patch(rect)
+    
     def _draw_neurons(self, ax: plt.Axes, network: NeuralNetwork) -> None:
-        """Draw neurons as circles, with ellipsis for collapsed layers. GenericOutput layers are drawn as rounded boxes."""
+        """Draw neurons as circles, with ellipsis for collapsed layers.
+        
+        For ImageInput layers, draws rectangles with images or text instead of neurons.
+        GenericOutput layers are drawn as rounded boxes.
+        """
         for layer_id, positions in self.neuron_positions.items():
             layer = network.get_layer(layer_id)
+            
+            # Special handling for ImageInput layers
+            if isinstance(layer, ImageInput):
+                self._draw_image_input_layer(ax, layer, layer_id, positions)
+                continue
             
             # Special handling for GenericOutput - draw as a rounded box with text
             if isinstance(layer, GenericOutput):
@@ -1448,6 +1986,11 @@ class NetworkPlotter:
                     all_x.append(x)
                     all_y.append(y)
         
+        # Add ImageInput bounds
+        for layer_id, (x_min, x_max, y_min, y_max) in self.image_input_bounds.items():
+            all_x.extend([x_min, x_max])
+            all_y.extend([y_min, y_max])
+        
         if not all_x or not all_y:
             return
         
@@ -1561,6 +2104,10 @@ class NetworkPlotter:
             if show_type:
                 if isinstance(layer, FullyConnectedLayer):
                     label_parts.append("FC layer")
+                elif isinstance(layer, ImageInput):
+                    # For ImageInput, show "Image Input" with color mode indicator
+                    color_indicator = f"({layer.color_mode.upper()})" if layer.color_mode else ""
+                    label_parts.append(f"Image Input {color_indicator}".strip())
                 elif isinstance(layer, VectorOutput):
                     label_parts.append("Output layer")
                 else:
@@ -1572,6 +2119,10 @@ class NetworkPlotter:
             if show_dim:
                 if isinstance(layer, (FullyConnectedLayer, VectorOutput)):
                     dim_text = f"Dim.: {layer.num_neurons}"
+                    label_parts.append(dim_text)
+                elif isinstance(layer, ImageInput):
+                    # For ImageInput, show dimensions as "width x height"
+                    dim_text = f"{layer.width} x {layer.height}"
                     label_parts.append(dim_text)
                 else:
                     label_parts.append(f"Dim.: {layer.get_output_size()}")
@@ -1615,8 +2166,46 @@ class NetworkPlotter:
                         min_y = min(min_y, layer_bottom)
                 label_y = min_y - self.config.layer_names_bottom_offset
             else:
-                # Position below each individual layer
-                label_y = y - (len(self.neuron_positions[layer_id]) * self.config.neuron_spacing / 2) - self.config.layer_names_offset
+                # Position below each individual layer with dynamic offset based on layer size
+                base_offset = self.config.layer_names_offset
+                
+                # For ImageInput layers, calculate offset from rectangle bounds
+                if isinstance(layer, ImageInput):
+                    # Get the ImageInput bounds to calculate proper offset
+                    if layer_id in self.image_input_bounds:
+                        bounds = self.image_input_bounds[layer_id]
+                        _, _, bottom_y, _ = bounds
+                        # Position label below the rectangle with extra spacing
+                        label_y = bottom_y - base_offset
+                    else:
+                        # Fallback to regular calculation with extra offset
+                        label_y = y - base_offset * 2
+                
+                # For GenericOutput layers, calculate offset from box bounds
+                elif isinstance(layer, GenericOutput):
+                    # Get the GenericOutput bounds to calculate proper offset
+                    if layer_id in self.generic_output_bounds:
+                        bounds = self.generic_output_bounds[layer_id]
+                        _, _, bottom_y, _ = bounds
+                        # Position label below the box with extra spacing
+                        label_y = bottom_y - base_offset
+                    else:
+                        # Fallback if no bounds stored
+                        label_y = y - base_offset
+                
+                else:
+                    # Regular layers - calculate offset dynamically based on layer height
+                    if layer_id in self.neuron_positions and self.neuron_positions[layer_id]:
+                        # Find the bottom of the layer
+                        layer_positions = self.neuron_positions[layer_id]
+                        min_y = min(pos[1] for pos in layer_positions)
+                        
+                        # Position label below the bottom neuron with spacing
+                        # Use neuron radius for additional spacing
+                        label_y = min_y - self.config.neuron_radius - base_offset
+                    else:
+                        # Fallback if no positions found
+                        label_y = y - base_offset
             
             # Configure bbox based on show_box setting
             bbox_props = dict(boxstyle='round,pad=0.5', facecolor='wheat', alpha=0.5) if self.config.layer_names_show_box else None
