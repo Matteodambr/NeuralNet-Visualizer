@@ -1,6 +1,7 @@
 """
 Comprehensive test of ImageInput layer with real cat images.
 Tests all modes: text, BW, RGB single, and RGB separated channels.
+Uses catto.jpg from the repository.
 """
 
 import sys
@@ -12,35 +13,24 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from NN_DEFINITION_UTILITIES import ImageInput, NeuralNetwork, FullyConnectedLayer
 from NN_PLOTTING_UTILITIES import NetworkPlotter, PlotConfig
-import requests
-from PIL import Image
-import io
 
 
-def download_cat_image():
-    """Download a cat image from the internet."""
-    # Use a reliable cat image URL
-    cat_url = "https://cataas.com/cat?width=400&height=300"
+def get_catto_path():
+    """Get the path to catto.jpg from the repository."""
+    # catto.jpg is in src/readme_image_static/
+    catto_path = os.path.join(
+        os.path.dirname(__file__), 
+        "..", 
+        "readme_image_static", 
+        "catto.jpg"
+    )
+    catto_path = os.path.abspath(catto_path)
     
-    try:
-        print("Downloading cat image...")
-        response = requests.get(cat_url, timeout=10)
-        response.raise_for_status()
-        
-        # Save to test_images directory
-        output_dir = os.path.join(os.path.dirname(__file__), "test_images")
-        os.makedirs(output_dir, exist_ok=True)
-        
-        output_path = os.path.join(output_dir, "real_cat.jpg")
-        with open(output_path, 'wb') as f:
-            f.write(response.content)
-        
-        print(f"✓ Cat image downloaded to {output_path}")
-        return output_path
-    except Exception as e:
-        print(f"Warning: Could not download cat image: {e}")
-        print("Will use fallback test image instead")
-        return None
+    if not os.path.exists(catto_path):
+        raise FileNotFoundError(f"Could not find catto.jpg at {catto_path}")
+    
+    print(f"Using catto.jpg from: {catto_path}")
+    return catto_path
 
 
 def test_text_mode_with_color():
@@ -95,10 +85,6 @@ def test_bw_mode(cat_image_path):
     """Test 2: Black & white mode with real cat image."""
     import matplotlib as mpl
     
-    if cat_image_path is None:
-        # Use fallback
-        cat_image_path = os.path.join(os.path.dirname(__file__), "test_images", "kitten_like.png")
-    
     network = NeuralNetwork(name="CNN BW Mode")
     
     # BW mode
@@ -142,9 +128,6 @@ def test_bw_mode(cat_image_path):
 def test_rgb_single_mode(cat_image_path):
     """Test 3: RGB mode with single image (full color cat)."""
     import matplotlib as mpl
-    
-    if cat_image_path is None:
-        cat_image_path = os.path.join(os.path.dirname(__file__), "test_images", "kitten_like.png")
     
     network = NeuralNetwork(name="CNN RGB Single")
     
@@ -191,9 +174,6 @@ def test_rgb_separated_mode(cat_image_path):
     """Test 4: RGB mode with separated channels (3 overlapped rectangles)."""
     import matplotlib as mpl
     
-    if cat_image_path is None:
-        cat_image_path = os.path.join(os.path.dirname(__file__), "test_images", "kitten_like.png")
-    
     network = NeuralNetwork(name="CNN RGB Separated")
     
     # RGB separated channels mode
@@ -239,8 +219,8 @@ if __name__ == "__main__":
     print("Running Comprehensive ImageInput Tests with Real Cat Images")
     print("=" * 70)
     
-    # Download cat image
-    cat_image_path = download_cat_image()
+    # Get catto.jpg path from repository
+    cat_image_path = get_catto_path()
     print()
     
     # Run all tests
@@ -253,6 +233,6 @@ if __name__ == "__main__":
     print("All comprehensive tests completed! ✓")
     print("\nGenerated visualizations:")
     print("  1. comprehensive_text_mode.png - Text mode with colored rectangle")
-    print("  2. comprehensive_bw_mode.png - Black & white cat image")
-    print("  3. comprehensive_rgb_single.png - Full color RGB cat image")
-    print("  4. comprehensive_rgb_separated.png - RGB channels separated")
+    print("  2. comprehensive_bw_mode.png - Black & white catto.jpg")
+    print("  3. comprehensive_rgb_single.png - Full color RGB catto.jpg")
+    print("  4. comprehensive_rgb_separated.png - RGB channels separated from catto.jpg")

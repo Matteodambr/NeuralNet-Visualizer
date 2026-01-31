@@ -874,6 +874,19 @@ class NetworkPlotter:
     def _load_image(self, image_path: str) -> Optional[np.ndarray]:
         """Load an image from a file path or URL.
         
+        Supports any image format that PIL/Pillow can open, including:
+        - JPEG (.jpg, .jpeg)
+        - PNG (.png) - including with alpha channel (RGBA)
+        - GIF (.gif)
+        - BMP (.bmp)
+        - TIFF (.tif, .tiff)
+        - WebP (.webp)
+        - And many more formats supported by PIL
+        
+        Images with alpha channels (RGBA) are automatically converted to RGB
+        with a white background. All other color modes are converted to RGB or
+        kept as grayscale (L mode).
+        
         Args:
             image_path: Path to local file or URL to image
             
