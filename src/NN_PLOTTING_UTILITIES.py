@@ -1141,6 +1141,9 @@ class NetworkPlotter:
         
         # Calculate text bounds to ensure it fits
         # We need to iterate to find the right font size
+        TEXT_PADDING_FACTOR = 1.4  # 20% margin on each side (1 + 0.2 + 0.2)
+        FONT_SCALE_REDUCTION = 0.95  # Apply 5% reduction for comfortable fit
+        
         max_iterations = 10
         for iteration in range(max_iterations):
             # Create temporary text to measure size
@@ -1163,15 +1166,15 @@ class NetworkPlotter:
             temp_text.remove()
             
             # Calculate required padding (20% margin on each side for safety)
-            required_width = text_width * 1.4
-            required_height = text_height * 1.4
+            required_width = text_width * TEXT_PADDING_FACTOR
+            required_height = text_height * TEXT_PADDING_FACTOR
             
             # Check if text fits
             if required_width <= width and required_height <= height:
                 break
             
             # Scale down the font size
-            scale_factor = min(width / required_width, height / required_height) * 0.95
+            scale_factor = min(width / required_width, height / required_height) * FONT_SCALE_REDUCTION
             fontsize = fontsize * scale_factor
         
         # Draw the final text with correct size
