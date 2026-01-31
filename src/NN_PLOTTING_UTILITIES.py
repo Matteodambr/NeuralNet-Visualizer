@@ -850,23 +850,81 @@ class NetworkPlotter:
             
             if level_idx == 0:
                 # First level: stack all layers centered around y=0
+                # The center of the entire group (from top of topmost to bottom of bottommost) should be at y=0
                 total_height_all = sum(layer_heights.values()) + (len(layer_ids) - 1) * vertical_padding
+                
+                # Start from the top of the group
                 current_y = total_height_all / 2
+                
+                # First pass: calculate positions assuming group starts at current_y
+                temp_positions = {}
+                temp_layer_positions = {}
                 
                 for layer_id in layer_ids:
                     layer_height = layer_heights[layer_id]
                     num_neurons_display = layer_display_counts[layer_id]
+                    
+                    # Center of this layer
                     vertical_offset = current_y - layer_height / 2
                     
+                    # Start position for neurons in this layer
                     y_start = vertical_offset - layer_height / 2
                     positions = []
                     for j in range(num_neurons_display):
                         y_pos = y_start + j * self.config.neuron_spacing
                         positions.append((x_pos, y_pos))
                     
-                    self.neuron_positions[layer_id] = positions
-                    self.layer_positions[layer_id] = (x_pos, vertical_offset)
+                    temp_positions[layer_id] = positions
+                    temp_layer_positions[layer_id] = (x_pos, vertical_offset)
+                    
+                    # Move down for next layer
                     current_y -= (layer_height + vertical_padding)
+                
+                # Second pass: find actual top and bottom bounds of all layers
+                # For ImageInput layers, use their visual bounds; for others, use neuron positions
+                layer_tops = []
+                layer_bottoms = []
+                
+                for layer_id in layer_ids:
+                    layer = network.get_layer(layer_id)
+                    
+                    if isinstance(layer, ImageInput):
+                        # Use the visual height of the rectangle
+                        layer_height = layer_heights[layer_id]
+                        center_y = temp_layer_positions[layer_id][1]
+                        layer_tops.append(center_y + layer_height / 2)
+                        layer_bottoms.append(center_y - layer_height / 2)
+                    else:
+                        # Use neuron positions
+                        if temp_positions[layer_id]:
+                            y_positions = [pos[1] for pos in temp_positions[layer_id]]
+                            layer_tops.append(max(y_positions))
+                            layer_bottoms.append(min(y_positions))
+                
+                # Calculate the center of the entire group
+                if layer_tops and layer_bottoms:
+                    group_top = max(layer_tops)
+                    group_bottom = min(layer_bottoms)
+                    actual_group_center = (group_top + group_bottom) / 2
+                    
+                    # Calculate offset needed to center the group at y=0
+                    centering_offset = -actual_group_center
+                    
+                    # Third pass: apply the centering offset to all positions
+                    for layer_id in layer_ids:
+                        # Apply offset to neuron positions
+                        self.neuron_positions[layer_id] = [
+                            (pos[0], pos[1] + centering_offset) 
+                            for pos in temp_positions[layer_id]
+                        ]
+                        
+                        # Apply offset to layer center position
+                        old_pos = temp_layer_positions[layer_id]
+                        self.layer_positions[layer_id] = (old_pos[0], old_pos[1] + centering_offset)
+                else:
+                    # Fallback: use temp positions as-is
+                    self.neuron_positions.update(temp_positions)
+                    self.layer_positions.update(temp_layer_positions)
             else:
                 # Group layers by their parent set (layers with same parents should be distributed together)
                 from collections import defaultdict
