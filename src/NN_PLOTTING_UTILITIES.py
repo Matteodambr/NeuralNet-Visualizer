@@ -909,11 +909,29 @@ class NetworkPlotter:
                     group_bottom = min(layer_bottoms)
                     actual_group_center = (group_top + group_bottom) / 2
                     
+                    # DEBUG
+                    print(f"DEBUG Level {level_idx}: layer_tops={layer_tops}, layer_bottoms={layer_bottoms}")
+                    print(f"DEBUG: group_top={group_top}, group_bottom={group_bottom}, center={actual_group_center}")
+                    print(f"DEBUG: Layer IDs at this level: {layer_ids}")
+                    for lid in layer_ids:
+                        print(f"DEBUG:   {lid}: temp_layer_pos={temp_layer_positions[lid]}")
+                    
                     # Calculate offset needed to center the group at y=0
                     centering_offset = -actual_group_center
+                    print(f"DEBUG: centering_offset={centering_offset}")
                     
                     # Third pass: apply the centering offset to all positions
                     for layer_id in layer_ids:
+                        # Apply offset to neuron positions
+                        self.neuron_positions[layer_id] = [
+                            (pos[0], pos[1] + centering_offset) 
+                            for pos in temp_positions[layer_id]
+                        ]
+                        
+                        # Apply offset to layer center position
+                        old_pos = temp_layer_positions[layer_id]
+                        self.layer_positions[layer_id] = (old_pos[0], old_pos[1] + centering_offset)
+                        print(f"DEBUG:   {layer_id}: final_layer_pos={self.layer_positions[layer_id]}")
                         # Apply offset to neuron positions
                         self.neuron_positions[layer_id] = [
                             (pos[0], pos[1] + centering_offset) 
