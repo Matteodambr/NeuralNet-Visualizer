@@ -18,13 +18,17 @@ try:
     from .NN_DEFINITION_UTILITIES import (
         NeuralNetwork,
         FullyConnectedLayer,
-        VectorInput
+        VectorInput,
+        VectorOutput,
+        GenericOutput
     )
 except ImportError:
     from NN_DEFINITION_UTILITIES import (
         NeuralNetwork,
         FullyConnectedLayer,
-        VectorInput
+        VectorInput,
+        VectorOutput,
+        GenericOutput
     )
 
 
@@ -291,11 +295,18 @@ class NetworkPlotter:
         self.config = config or PlotConfig()
         # Set font for all text in the plot (including math text)
         try:
-            # Use LaTeX for publication-quality math rendering with proper accents
-            mpl.rcParams['text.usetex'] = True
-            mpl.rcParams['text.latex.preamble'] = r'\usepackage{amsmath} \usepackage{amssymb}'
-            mpl.rcParams['font.family'] = 'serif'
-            mpl.rcParams['font.serif'] = [self.config.font_family]
+            # Try to use LaTeX for publication-quality math rendering with proper accents
+            # First check if LaTeX is available
+            import subprocess
+            try:
+                subprocess.run(['latex', '--version'], capture_output=True, check=True, timeout=1)
+                mpl.rcParams['text.usetex'] = True
+                mpl.rcParams['text.latex.preamble'] = r'\usepackage{amsmath} \usepackage{amssymb}'
+                mpl.rcParams['font.family'] = 'serif'
+                mpl.rcParams['font.serif'] = [self.config.font_family]
+            except (subprocess.CalledProcessError, FileNotFoundError, subprocess.TimeoutExpired):
+                # LaTeX not available, use fallback
+                raise Exception("LaTeX not available")
         except Exception:
             # If LaTeX rendering fails, fall back to mathtext
             try:
@@ -634,8 +645,15 @@ class NetworkPlotter:
             # X position for this layer (apply spacing multiplier)
             x_pos = i * self.config.layer_spacing * self.config.layer_spacing_multiplier
             
+            # Special handling for GenericOutput - just store center position
+            if isinstance(layer, GenericOutput):
+                # For GenericOutput, we just need the center position
+                self.neuron_positions[layer_id] = [(x_pos, 0)]  # Single center point
+                self.layer_positions[layer_id] = (x_pos, 0)
+                continue
+            
             # Get actual number of neurons
-            if isinstance(layer, FullyConnectedLayer):
+            if isinstance(layer, (FullyConnectedLayer, VectorOutput)):
                 actual_neurons = layer.num_neurons
             else:
                 actual_neurons = layer.get_output_size()
@@ -702,8 +720,13 @@ class NetworkPlotter:
             for layer_id in layer_ids:
                 layer = network.get_layer(layer_id)
                 
+                # Special handling for GenericOutput
+                if isinstance(layer, GenericOutput):
+                    layer_display_counts[layer_id] = 1  # Single point for center
+                    continue
+                
                 # Get actual number of neurons
-                if isinstance(layer, FullyConnectedLayer):
+                if isinstance(layer, (FullyConnectedLayer, VectorOutput)):
                     actual_neurons = layer.num_neurons
                 else:
                     actual_neurons = layer.get_output_size()
@@ -849,15 +872,20 @@ class NetworkPlotter:
         return levels
     
     def _draw_neurons(self, ax: plt.Axes, network: NeuralNetwork) -> None:
-        """Draw neurons as circles, with ellipsis for collapsed layers."""
+        """Draw neurons as circles, with ellipsis for collapsed layers. GenericOutput layers are drawn as rounded boxes."""
         for layer_id, positions in self.neuron_positions.items():
             layer = network.get_layer(layer_id)
+            
+            # Special handling for GenericOutput - draw as a rounded box with text
+            if isinstance(layer, GenericOutput):
+                self._draw_generic_output(ax, layer, layer_id, positions[0])
+                continue
             
             # Get layer-specific style or use defaults
             layer_style = self._get_layer_style(layer_id, layer.name)
             
             # Determine colors and edge properties
-            if isinstance(layer, FullyConnectedLayer):
+            if isinstance(layer, (FullyConnectedLayer, VectorOutput)):
                 fill_color = layer_style.neuron_fill_color or self.config.neuron_color
             else:
                 fill_color = layer_style.neuron_fill_color or 'lightgreen'
@@ -874,7 +902,7 @@ class NetworkPlotter:
             max_label_width = 0
             max_label_height = 0
             if (self.config.show_neuron_text_labels and 
-                isinstance(layer, (FullyConnectedLayer, VectorInput)) and 
+                isinstance(layer, (FullyConnectedLayer, VectorInput, VectorOutput)) and 
                 layer.neuron_labels is not None):
                 # Get the x-coordinate of the layer (all neurons in same layer have same x)
                 if positions:
@@ -960,7 +988,7 @@ class NetworkPlotter:
                     # Apply numbering direction
                     if self.config.neuron_numbering_reversed:
                         # Reverse: bottom-to-top (higher indices at top)
-                        if isinstance(layer, FullyConnectedLayer):
+                        if isinstance(layer, (FullyConnectedLayer, VectorOutput)):
                             total_neurons = layer.num_neurons
                         else:
                             total_neurons = layer.get_output_size()
@@ -979,7 +1007,7 @@ class NetworkPlotter:
                 
                 # Add custom text labels if requested (skip for dots position)
                 if (self.config.show_neuron_text_labels and 
-                    isinstance(layer, (FullyConnectedLayer, VectorInput)) and 
+                    isinstance(layer, (FullyConnectedLayer, VectorInput, VectorOutput)) and 
                     layer.neuron_labels is not None and
                     not (is_collapsed and i == dots_position)):
                     
@@ -1083,6 +1111,46 @@ class NetworkPlotter:
                                 fontname=self.config.font_family,
                                 zorder=11)
     
+    def _draw_generic_output(self, ax: plt.Axes, layer: GenericOutput, layer_id: str, position: Tuple[float, float]) -> None:
+        """Draw a GenericOutput layer as a rounded box with text inside."""
+        x, y = position
+        
+        # Get layer-specific style or use defaults
+        layer_style = self._get_layer_style(layer_id, layer.name)
+        
+        # Box dimensions
+        box_width = 2.0  # Default width
+        box_height = 1.0  # Default height
+        
+        # Colors
+        fill_color = layer_style.neuron_fill_color or 'lightcoral'
+        edge_color = layer_style.neuron_edge_color or self.config.neuron_edge_color
+        edge_width = layer_style.neuron_edge_width if layer_style.neuron_edge_width is not None else self.config.neuron_edge_width
+        
+        # Draw the rounded box
+        from matplotlib.patches import FancyBboxPatch
+        box = FancyBboxPatch(
+            (x - box_width/2, y - box_height/2),
+            box_width,
+            box_height,
+            boxstyle='round,pad=0.1',
+            facecolor=fill_color,
+            edgecolor=edge_color,
+            linewidth=edge_width,
+            zorder=10
+        )
+        ax.add_patch(box)
+        
+        # Draw the text inside the box
+        ax.text(
+            x, y, layer.text,
+            ha='center', va='center',
+            fontsize=self.config.neuron_text_label_fontsize,
+            fontname=self.config.font_family,
+            fontweight='bold',
+            zorder=11
+        )
+    
     def _draw_layer_boxes(self, ax: plt.Axes, network: NeuralNetwork) -> None:
         """Draw rounded boxes around layers that have box_around_layer=True in their LayerStyle."""
         for layer_id, positions in self.neuron_positions.items():
@@ -1115,7 +1183,7 @@ class NetworkPlotter:
             max_y += padding
             
             # Extend box to include neuron labels if requested
-            if layer_style.box_include_neuron_labels and isinstance(layer, (FullyConnectedLayer, VectorInput)):
+            if layer_style.box_include_neuron_labels and isinstance(layer, (FullyConnectedLayer, VectorInput, VectorOutput)):
                 if layer.neuron_labels is not None and self.config.show_neuron_text_labels:
                     # Labels are positioned at neuron_text_label_offset from neuron center
                     # Box already includes neuron_radius + padding from center
@@ -1424,6 +1492,8 @@ class NetworkPlotter:
             if show_type:
                 if isinstance(layer, FullyConnectedLayer):
                     label_parts.append("FC layer")
+                elif isinstance(layer, VectorOutput):
+                    label_parts.append("Output layer")
                 else:
                     # For other layer types, use a generic label or class name
                     idx = network._layer_order.index(layer_id)
@@ -1431,7 +1501,7 @@ class NetworkPlotter:
             
             # Line 3: Dimension information
             if show_dim:
-                if isinstance(layer, FullyConnectedLayer):
+                if isinstance(layer, (FullyConnectedLayer, VectorOutput)):
                     dim_text = f"Dim.: {layer.num_neurons}"
                     label_parts.append(dim_text)
                 else:
@@ -1439,7 +1509,7 @@ class NetworkPlotter:
             
             # Line 4: Activation information
             if show_activation:
-                if isinstance(layer, FullyConnectedLayer) and layer.activation:
+                if isinstance(layer, (FullyConnectedLayer, VectorOutput)) and layer.activation:
                     # Use capitalized version if available, otherwise use as-is
                     act_name = activation_display.get(layer.activation.lower(), layer.activation)
                     label_parts.append(f"Act.: {act_name}")
@@ -1449,6 +1519,8 @@ class NetworkPlotter:
                 # Fallback: if nothing is enabled, show layer type
                 if isinstance(layer, FullyConnectedLayer):
                     label = "FC layer"
+                elif isinstance(layer, VectorOutput):
+                    label = "Output layer"
                 else:
                     idx = network._layer_order.index(layer_id)
                     label = f"Layer {idx}"
